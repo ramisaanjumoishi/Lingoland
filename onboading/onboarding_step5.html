@@ -6,7 +6,6 @@
   <title>Lingoland — Step 5 · Interests</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
   <style>
-    /* === copied theme & base from Step 1 === */
     :root{
       --bg-1: #f5a7d3;
       --bg-2: #97c0fc;
@@ -471,17 +470,41 @@
     });
 
     // Submit handler: save and animate to next
-    document.getElementById('interestsForm').addEventListener('submit', (e) => {
-      e.preventDefault();
-      // if nothing selected, allow proceed but you can choose to warn — here we proceed
-      // send to server (fire-and-forget)
-      const form = e.target;
-      const formData = new FormData(form);
-      // send via fetch; don't block navigation on slow network — preserve UX
-      fetch(form.action, { method: 'POST', body: formData }).catch(()=>{/* silent */});
-      // animate and go to next
+   // Submit handler: save and animate to next
+document.getElementById('interestsForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const formData = new FormData(form);
+  const interests = JSON.parse(document.getElementById('interests_json').value || "[]");
+
+  if (interests.length === 0) {
+    alert("Please select at least one interest before continuing.");
+    return;
+  }
+
+  // debug
+  console.log("Selected interests:", interests);
+    // debug: list FormData key/values in console
+ for (const pair of formData.entries()) {
+  console.log('formData:', pair[0], '=', pair[1]);
+}
+
+  fetch(form.action, {
+    method: 'POST',
+    body: formData
+  })
+  .then(res => res.text())
+  .then(res => {
+    console.log("Server response:", res);
+    if (res.includes("success")) {
       showNextStep('onboarding_step6.html');
-    });
+    } else {
+      alert("⚠️ Error saving data: " + res);
+    }
+  })
+  .catch(err => console.error('Error saving interests:', err));
+});
+
 
     // Make dots show current step (5th active on load)
     window.addEventListener('load', ()=> {

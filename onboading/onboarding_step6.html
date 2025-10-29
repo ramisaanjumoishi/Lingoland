@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Lingoland — Step 7: Learning Time</title>
+  <title>Lingoland — Step 6: Learning Time</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
   <canvas id="sparkCanvas"></canvas>
   <style>
@@ -125,7 +125,7 @@
           <div><h5>Lingoland</h5><p class="small muted">AI-powered English learning</p></div>
         </div>
 
-        <div class="screen-title">Step 7 of 7</div>
+        <div class="screen-title">Step 6 of 6</div>
         <h1 class="title">⏰ How much time will you spend daily?</h1>
         <p class="subtitle">We’ll tailor your daily lessons and reminders based on your availability.</p>
 
@@ -182,14 +182,40 @@
     });
 
     // smooth transition like step 1
-    document.getElementById('timeForm').addEventListener('submit',e=>{
-      e.preventDefault();
-      const card=document.querySelector('.card');
-      card.style.transition='transform .5s ease, opacity .5s ease';
-      card.style.transform='translateX(-40px) scale(.98)';
-      card.style.opacity='.92';
-      setTimeout(()=>{window.location.href='dashboard.php';},700);
+    document.getElementById('timeForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const selected = document.getElementById('daily_time').value;
+  if (!selected) {
+    alert("Please select a daily study time first!");
+    return;
+  }
+
+  // Send to PHP
+  const formData = new FormData();
+  formData.append('daily_time', selected);
+
+  const card = document.querySelector('.card');
+  card.style.transition = 'transform .5s ease, opacity .5s ease';
+  card.style.transform = 'translateX(-40px) scale(.98)';
+  card.style.opacity = '.92';
+
+  try {
+    const response = await fetch('save_time.php', {
+      method: 'POST',
+      body: formData
     });
+    const result = await response.text();
+    console.log(result);
+    setTimeout(() => {
+      window.location.href = '../user_dashboard/user-dashboard.php';
+    }, 700);
+  } catch (err) {
+    console.error(err);
+    alert("Something went wrong saving your time!");
+  }
+});
+
 
 // Sparkle confetti for a celebratory touch
     function createSparkle() {
