@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en" class="no-js">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta charset="UTF-8" />
+    <title>Lingoland - Login</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&family=Poppins:wght@500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../home/bootstrap.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <link rel="stylesheet" href="login_signup.css">
+</head>
+
+<body>
+<div class="container" id="container">
+    <!-- Sign Up Section -->
+    <div class="form-container sign-up-container">
+        <form action="register.php" method="post">
+            <h1>Create Account</h1>
+            <div class="input-group">
+                <i class="fas fa-user"></i>
+                <input type="text" name="first_name"  placeholder="First Name" class="form-control"  required />
+            </div>
+            <div class="input-group">
+                <i class="fas fa-user"></i>
+                <input type="text" name="last_name" placeholder="Last Name"  class="form-control"  required />
+            </div>
+            <div class="input-group">
+                <i class="fas fa-envelope"></i>
+                <input type="email" name="email" placeholder="Email"  class="form-control"  required />
+            </div>
+            <div class="input-group">
+                <i class="fas fa-lock"></i>
+                <input type="password" name="password"placeholder="Password"  class="form-control"  required />
+            </div>
+            <div class="input-group">
+                <i class="fas fa-lock"></i>
+                <input type="password" name="confirm_password" placeholder="Retype Password"   class="form-control"  required />
+            </div>
+            <button type="submit">Sign Up</button>
+        </form>
+    </div>
+
+    <!-- Sign In Section -->
+    <div class="form-container sign-in-container">
+        <form action="login_process.php" method="post">
+            <h1>Welcome to Lingoland</h1>
+            <p class="tagline">Log in and continue your learning adventure!</p>
+
+            <div class="input-group">
+                <i class="fas fa-envelope"></i>
+                <input type="email" name="email" id="email" class="form-control" placeholder="Email" required />
+            </div>
+            <div class="input-group">
+                <i class="fas fa-lock"></i>
+                <input type="password" name="password" id="password" class="form-control" placeholder="Password" required />
+            </div>
+
+            <a href="../reset_pass/reset.html" class="forgot">Forgot your password?</a>
+            <button type="submit" >Log In</button>
+        </form>
+    </div>
+
+    <!-- Overlay Section -->
+    <div class="overlay-container">
+        <div class="overlay">
+            <div class="overlay-panel overlay-left">
+                <h1>Welcome Back!</h1>
+                <p>Continue mastering languages, one fun challenge at a time.</p>
+                <button class="ghost" id="signIn">Log In</button>
+            </div>
+            <div class="overlay-panel overlay-right">
+                <h1>Hello, Learner!</h1>
+                <p>Join Lingoland — learn English through personalized courses, quizzes, and fun lessons!</p>
+                <button class="ghost" id="signUp">Sign Up</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer>
+    <p>Powered by <strong>Lingoland</strong> — Learn languages the fun & easy way!</p>
+</footer>
+
+<script>
+const signUpButton = document.getElementById('signUp');
+const signInButton = document.getElementById('signIn');
+const container = document.getElementById('container');
+
+const signUpForm = document.querySelector('.sign-up-container form');
+const signInForm = document.querySelector('.sign-in-container form');
+
+function toggleForms() {
+    if (container.classList.contains("right-panel-active")) {
+        // Signup active → disable signin fields
+        [...signInForm.elements].forEach(el => el.disabled = true);
+        [...signUpForm.elements].forEach(el => el.disabled = false);
+    } else {
+        // Signin active → disable signup fields
+        [...signUpForm.elements].forEach(el => el.disabled = true);
+        [...signInForm.elements].forEach(el => el.disabled = false);
+    }
+}
+
+// Initial check
+toggleForms();
+
+// Add listeners
+signUpButton.addEventListener('click', () => {
+    container.classList.add("right-panel-active");
+    toggleForms();
+});
+signInButton.addEventListener('click', () => {
+    container.classList.remove("right-panel-active");
+    toggleForms();
+});
+</script>
+
+</body>
+</html>
