@@ -213,6 +213,10 @@ document.getElementById('goalForm').addEventListener('submit', e => {
 
   const form = e.target;
   const formData = new FormData(form);
+  // debug: list FormData key/values in console
+ for (const pair of formData.entries()) {
+  console.log('formData:', pair[0], '=', pair[1]);
+}
 
   // Post data to backend
   fetch(form.action, {
