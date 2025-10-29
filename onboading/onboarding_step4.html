@@ -6,7 +6,7 @@
 <title>Lingoland — Step 4: Proficiency & Style</title>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-/* ===== Theme Base (copied from Step 1) ===== */
+
 :root{
   --bg-1:#f5a7d3; --bg-2:#97c0fc;
   --accent-1:#6a4c93; --accent-2:#9b59b6;
@@ -141,24 +141,25 @@ html,body{
         </div>
         <input type="hidden" name="proficiency_self" id="proficiency_self">
 
-        <label class="section-label"><strong>What kind of learner are you?</strong></label>
-        <div class="options-style" style="display:flex;flex-wrap:wrap;gap:10px;margin:10px 0;">
-          <button type="button" class="opt" data-value="Visual">🎨 Visual</button>
-          <button type="button" class="opt" data-value="Conversational">🗣️ Conversational</button>
-          <button type="button" class="opt" data-value="Theoretical">📖 Theoretical</button>
-          <button type="button" class="opt" data-value="Gamified">🎮 Gamified</button>
-        </div>
-        <input type="hidden" name="learning_style" id="learning_style">
-
         <label class="section-label"><strong>What describe you best as a learner?</strong></label>
-        <div class="options-style" style="display:flex;flex-wrap:wrap;gap:10px;margin:10px 0;">
-          <button type="button" class="opt" data-value="Steady_Learner">🐢 Steady Learner</button>
+        <div class="options-style" data-target="learning_style" style="display:flex;flex-wrap:wrap;gap:10px;margin:10px 0;">
+       <button type="button" class="opt" data-value="Steady_Learner">🐢 Steady Learner</button>
           <button type="button" class="opt" data-value="Fast_Learner">⚡ Fast Learner</button>
           <button type="button" class="opt" data-value="Goal_Focused">🎯 Goal Focused</button>
           <button type="button" class="opt" data-value="Creative">🎨 Creative</button>
           <button type="button" class="opt" data-value="Social">🧑‍🤝‍🧑 Social</button>
         </div>
         <input type="hidden" name="learning_style" id="learning_style">
+
+        <label class="section-label"><strong>What kind of learner are you?</strong></label>
+        <div class="options-personality" data-target="personality_type" style="display:flex;flex-wrap:wrap;gap:10px;margin:10px 0;">
+           <button type="button" class="opt" data-value="Visual">🎨 Visual</button>
+          <button type="button" class="opt" data-value="Conversational">🗣️ Conversational</button>
+          <button type="button" class="opt" data-value="Theoretical">📖 Theoretical</button>
+          <button type="button" class="opt" data-value="Gamified">🎮 Gamified</button>
+          
+        </div>
+        <input type="hidden" name="personality_type" id="personality_type">
 
         <div style="margin-top:24px;text-align:right;">
           <button type="button" class="btn ghost" id="backBtn">← Back</button>
@@ -192,15 +193,23 @@ function advanceDots() {
     }
 
 // Option selection visual
-document.querySelectorAll('.opt').forEach(btn=>{
-  btn.addEventListener('click',()=>{
-    const group=btn.parentElement;
-    group.querySelectorAll('.opt').forEach(b=>b.classList.remove('selected'));
+document.querySelectorAll('.opt').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const group = btn.parentElement;
+    group.querySelectorAll('.opt').forEach(b => b.classList.remove('selected'));
     btn.classList.add('selected');
-    const target=btn.closest('form').querySelector(`#${group.classList.contains('options-level')?'proficiency_self':'learning_style'}`);
-    target.value=btn.dataset.value;
+
+    // Find which hidden input to update
+    if (group.classList.contains('options-level')) {
+      document.getElementById('proficiency_self').value = btn.dataset.value;
+    } else if (group.classList.contains('options-style')) {
+      document.getElementById('learning_style').value = btn.dataset.value;
+    } else if (group.classList.contains('options-personality')) {
+      document.getElementById('personality_type').value = btn.dataset.value;
+    }
   });
 });
+
 document.querySelectorAll('.opt').forEach(b=>{
   b.style.padding='12px 20px';
   b.style.borderRadius='10px';
@@ -255,10 +264,35 @@ document.head.appendChild(style);
       setTimeout(()=> { window.location.href = 'onboarding_step3.html'; }, 400);
     });
 // Next transition
-document.getElementById('formStep4').addEventListener('submit',e=>{
+document.getElementById('formStep4').addEventListener('submit', e => {
   e.preventDefault();
-  advanceDots();
-  // Smooth exit animation like Step 1
+
+  const form = e.target;
+  const formData = new FormData(form);
+ 
+  // Check all three fields
+  const prof = formData.get('proficiency_self');
+  const style = formData.get('learning_style');
+  const personality = formData.get('personality_type');
+
+  if (!prof || !style || !personality) {
+    alert('Please select all three: level, style, and learner type.');
+    return;
+  }
+
+     // debug: list FormData key/values in console
+ for (const pair of formData.entries()) {
+  console.log('formData:', pair[0], '=', pair[1]);
+}
+
+  fetch(form.action, {
+    method: 'POST',
+    body: formData
+  })
+  .then(res => res.text())
+  .then(res => {
+    console.log('Server response:', res);
+    if (res.includes("success")) {
   const card=document.querySelector('.card');
   card.style.transition='transform .5s ease, opacity .5s ease';
   card.style.transform='translateX(-40px) scale(.98)';
@@ -268,6 +302,12 @@ document.getElementById('formStep4').addEventListener('submit',e=>{
   setTimeout(()=>{
     window.location.href='onboarding_step5.html';
   },700);
+}else {
+      alert("⚠️ Error saving data: " + res);
+      console.error(res);
+    }
+  })
+  .catch(err => console.error('Error saving step 4 data:', err));
 });
 </script>
 </body>
