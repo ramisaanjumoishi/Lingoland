@@ -1,128 +1,863 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lingoland User Dashboard</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Lingoland — Dashboard</title>
+
+  <!-- Fonts & Icons -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root {
+      --lilac-1: #6a4c93;
+      --lilac-2: #9b59b6;
+      --bg-light: #f6f7fb;
+      --card-light: #ffffff;
+      --text-light: #222;
+      --bg-dark: #0f1115;
+      --card-dark: #16171b;
+      --text-dark: #e9eefc;
+      --gradient: linear-gradient(135deg, #6a4c93, #9b59b6);
+      --muted: #6b6b6b;
+    }
+    *{box-sizing:border-box}
+    body {
+      margin: 0;
+      font-family: 'Poppins', 'Nunito', system-ui, sans-serif;
+      background: var(--bg-light);
+      color: var(--text-light);
+      transition: background .28s ease, color .28s ease;
+      min-height:100vh;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+    body.dark { background: var(--bg-dark); color: var(--text-dark); }
+
+    /* SIDEBAR (same as dashboard) */
+    .sidebar{
+      position: fixed; left:0; top:0;
+      width: 240px; height:100vh;
+      background: linear-gradient(180deg,var(--lilac-1),var(--lilac-2));
+      color:#fff; padding:22px 14px; overflow:auto;
+      display:flex; flex-direction:column; gap:8px;
+      z-index:60;
+    }
+    .sidebar::-webkit-scrollbar { width:6px; }
+    .sidebar::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.3); border-radius:8px; }
+    .brand { display:flex; gap:12px; align-items:center; margin-bottom:12px; }
+    .logo-circle{ width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:800;
+      background:linear-gradient(135deg,rgba(255,255,255,0.12),rgba(255,255,255,0.06));
+      box-shadow: 0 8px 22px rgba(0,0,0,0.12); font-size:20px;
+    }
+    nav.menu{ display:flex; flex-direction:column; gap:6px; }
+    nav.menu a{
+      display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;color:rgba(255,255,255,0.95);text-decoration:none;
+      transition:background .18s, transform .15s; font-weight:600;
+    }
+    nav.menu a:hover{background: rgba(255,255,255,0.08); transform: translateX(6px)}
+    .sub {display:none; margin-left:18px; flex-direction:column; gap:6px; margin-top:6px}
+    .sub a{font-weight:500; font-size:14px; padding-left:18px; color:rgba(255,255,255,0.9)}
+       .sub.show {
+  display: flex;
+  animation: fadeIn .25s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+    /* HEADER */
+    .header {
+      position: fixed; left:240px; right:0; top:0; height:64px;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:10px 20px; background: var(--card-light); border-bottom:1px solid rgba(0,0,0,0.04);
+      z-index: 40; transition: background .24s;
+    }
+    body.dark .header { background: var(--card-dark); border-bottom:1px solid rgba(255,255,255,0.04) }
+    .header .left {display:flex;align-items:center; gap:14px}
+    .header .right { display:flex; align-items:center; gap:12px; position:relative }
+
+    .header .info {line-height:1}
+    .header .info strong{display:block}
+    .icon-btn{
+      background:transparent;border:0;padding:8px;border-radius:8px;cursor:pointer;font-size:16px;
+    }
+
+    /* Settings infinite spin */
+    #settingsBtn { font-size:18px; color:var(--muted); }
+    #settingsBtn { animation: rotating 8s linear infinite; }
+    @keyframes rotating { 0%{ transform:rotate(0deg) } 100%{ transform:rotate(360deg) } }
+
+    /* small popups */
+    .popup {
+      position:absolute; top:62px; right:20px; width:280px; display:none; background:var(--card-light); border-radius:10px;
+      box-shadow:0 12px 30px rgba(0,0,0,0.12); padding:10px; z-index:80;
+    }
+    body.dark .popup { background:var(--card-dark) }
+    .popup.show { display:block }
+
+    /* MAIN */
+    main{ margin-left:240px; padding:94px 28px 48px 28px; min-height:100vh; }
+
+    h1{ margin:0; font-size:22px; font-weight:700; }
+
+    /* TOP STAT CARDS */
+    .stats { display:grid; grid-template-columns: repeat(4,1fr); gap:18px; margin-top:18px; }
+    .card{
+      border-radius:14px; padding:14px; background:var(--card-light); box-shadow:0 8px 28px rgba(11,11,12,0.06);
+      transition: transform .22s ease, background .24s ease, opacity .36s ease, transform .36s ease;
+      opacity:0; transform:translateY(12px);
+    }
+    body.dark .card{ background:var(--card-dark) }
+    .card h4{ margin:0 0 6px 0; font-size:14px }
+    .stat-large{ font-weight:800; font-size:20px; margin-top:6px }
+    .mini-canvas{ width:120px; height:46px; }
+
+    .card.enter { opacity:1; transform:translateY(0); }
+
+    .card:hover{ transform: translateY(-6px) }
+
+    /* charts row */
+    .charts-row{ display:flex; gap:18px; margin-top:20px; align-items:flex-start; flex-wrap:wrap; }
+    .chart-box{ flex:1; min-width:280px; background:var(--card-light); padding:14px; border-radius:12px; box-shadow:0 8px 26px rgba(11,11,12,0.04); transition:opacity .36s ease, transform .36s ease; opacity:0; transform:translateY(14px) }
+    body.dark .chart-box { background:var(--card-dark) }
+    .chart-box.enter{ opacity:1; transform:translateY(0); }
+
+    /* --------------------------------------------------------------------
+       MODIFIED: Course card styling (kept mostly your structure, improved look)
+       -------------------------------------------------------------------- */
+    .courses-grid { display:flex; gap:14px; margin-top:18px; flex-wrap:wrap }
+    /* Modified: more polished, subtle gradient, icon, hover scale, entrance */
+.course-card {
+  width: 240px;
+  min-height: 100px;
+  padding: 16px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #faf5ff, #f5f0ff);
+  border: 2px solid rgba(155, 89, 182, 0.25);
+  transition: transform .28s ease, box-shadow .28s ease, opacity .36s ease;
+  position: relative;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(12px) scale(.995);
+}
+.course-card.enter { opacity: 1; transform: translateY(0) scale(1); }
+body.dark .course-card {
+  background: linear-gradient(135deg,#20132d,#3a2951);
+  border: 2px solid rgba(255,255,255,0.08);
+}
+.course-card:hover {
+  transform: translateY(-8px) scale(1.03);
+  box-shadow: 0 20px 40px rgba(106,76,147,0.25);
+  border-color: #9b59b6;
+}
+.course-card .cc-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gradient);
+  color: #fff;
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  font-size: 20px;
+}
+    .course-card .interest { font-size:12px; color:var(--muted); margin-top:6px; }
     
-   
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    
-    
-    <link href="user-dashboard.css" rel="stylesheet">
+    .course-card .cc-content { margin-left: 56px; }
+    /* -------------------------------------------------------------------- */
+
+    /* --------------------------------------------------------------------
+       MODIFIED: Leaderboard styling (rank gradients + nicer badges)
+       -------------------------------------------------------------------- */
+    .leaderboard{ margin-top:24px; }
+    .leader-row{
+      display:flex;align-items:center;justify-content:space-between;
+      background:var(--card-light);padding:12px;border-radius:12px;margin-top:10px;
+      transition: transform .32s ease, box-shadow .32s ease, opacity .36s ease;
+      box-shadow:0 6px 18px rgba(0,0,0,0.04);
+      opacity:0; transform:translateY(10px);
+    }
+    .leader-row:nth-child(1) {
+  background: linear-gradient(135deg,#fff1d0,#ffe29a);
+}
+.leader-row:nth-child(2) {
+  background: linear-gradient(135deg,#e3f2ff,#b8dfff);
+}
+.leader-row:nth-child(3) {
+  background: linear-gradient(135deg,#ffe4ec,#ffb3c6);
+}
+body.dark .leader-row:nth-child(1) {
+  background: linear-gradient(135deg,#3a2e19,#4a3c22);
+}
+body.dark .leader-row:nth-child(2) {
+  background: linear-gradient(135deg,#1b2e47,#294b63);
+}
+body.dark .leader-row:nth-child(3) {
+  background: linear-gradient(135deg,#432b3a,#623c4c);
+}
+
+    .leader-row.enter { opacity:1; transform:translateY(0); }
+    body.dark .leader-row{ background:var(--card-dark); }
+    .leader-row:hover{ transform: translateY(-6px) scale(1.01); box-shadow:0 18px 46px rgba(0,0,0,0.12) }
+    .rank-badge{
+      width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-weight:800;color:#fff;font-size:16px; box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+    }
+    .rank1{background:linear-gradient(135deg,#ffd26f,#ff9a00);}
+    .rank2{background:linear-gradient(135deg,#a2d2ff,#6ec1e4);}
+    .rank3{background:linear-gradient(135deg,#ffb3c6,#ff6392);}
+    .rank-other{background:linear-gradient(135deg,#ccc,#999);}
+    /* -------------------------------------------------------------------- */
+
+    /* settings panel */
+    .settings-panel{ position: fixed; right:-460px; top:0; width:420px; height:100vh; background:var(--card-light);
+      box-shadow:-16px 0 40px rgba(0,0,0,0.14); padding:18px; transition:right .32s ease; z-index:90; }
+    .settings-panel.open{ right:0; }
+    .settings-close{ position:absolute; top:10px; right:14px; background:none; border:none; color:var(--muted); font-size:20px; cursor:pointer; }
+    body.dark .settings-panel{ background:var(--card-dark); }
+
+    /* Updated settings panel styles */
+.settings-panel {
+  width: 420px; 
+  padding: 28px;
+  overflow-y: auto;
+}
+.settings-profile {
+  text-align: center;
+  margin-top: 40px;
+}
+.settings-profile h3 {
+  margin: 10px 0 4px 0;
+  font-weight: 700;
+  color: var(--lilac-1);
+}
+.settings-profile p {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.profile-photo {
+  position: relative;
+  display: inline-block;
+}
+.profile-photo img {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+}
+.edit-photo {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  background: var(--gradient);
+  border: none;
+  color: #fff;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 12px;
+  transition: transform .2s;
+}
+.edit-photo:hover { transform: scale(1.1); }
+
+.settings-section {
+  margin-top: 24px;
+}
+.settings-section h4 {
+  color: var(--lilac-1);
+  margin-bottom: 8px;
+  font-size: 16px;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  padding-bottom: 4px;
+}
+.field-group {
+  display: flex;
+  align-items: center;
+  margin-top: 10px;
+  background: var(--card-light);
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.04);
+  
+}
+body.dark .field-group {
+  background: var(--card-dark);
+  
+}
+.field-group input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 10px;
+  font-size: 14px;
+  color: inherit;
+}
+.field-group input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.edit-btn {
+  background: var(--gradient);
+  border: none;
+  color: #fff;
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  transition: transform .2s, background .3s;
+}
+.edit-btn:hover {
+  transform: scale(1.1);
+}
+
+/* Settings Panel Input Styling */
+.settings-panel input[type="text"],
+.settings-panel input[type="email"],
+.settings-panel input[type="password"] {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background: linear-gradient(#fff, #fff) padding-box,
+              linear-gradient(90deg, #6a4c93, #9b59b6, #ffd26f) border-box;
+  font-family: 'Poppins', sans-serif;
+  font-size: 14px;
+  color: var(--text-light);
+  transition: all 0.3s ease;
+}
+
+/* Dark mode support */
+body.dark .settings-panel input {
+  background: linear-gradient(#16171b, #16171b) padding-box,
+              linear-gradient(90deg, #b57aff, #9b59b6, #ffd26f) border-box;
+  color: #e9eefc;
+}
+
+/* Hover + focus effects */
+.settings-panel input:hover,
+.settings-panel input:focus {
+  outline: none;
+  transform: scale(1.02);
+  box-shadow: 0 0 12px rgba(155, 89, 182, 0.5);
+  background: linear-gradient(#fff, #fff) padding-box,
+              linear-gradient(135deg, #9b59b6, #ffd26f) border-box;
+}
+
+body.dark .settings-panel input:hover,
+body.dark .settings-panel input:focus {
+  box-shadow: 0 0 14px rgba(181, 122, 255, 0.6);
+}
+
+.settings-panel .edit-btn {
+  background: none;
+  border: none;
+  color: var(--lilac-2);
+  cursor: pointer;
+  font-size: 15px;
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.settings-panel .edit-btn:hover {
+  color: #ffd26f;
+  transform: scale(1.1);
+}
 
 
-    
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&family=Poppins:wght@500&display=swap" rel="stylesheet">
+
+    /* chatbot */
+    .chatbot{ position: fixed; right:30px; bottom:22px; z-index:120; display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
+    .chatbot-btn{ width:60px; height:60px; border-radius:50%; border:0; background:var(--gradient); color:white; font-size:22px; cursor:pointer; box-shadow:0 12px 36px rgba(0,0,0,0.18); }
+    .chat-window {
+  width: 360px;
+  min-height: 360px;
+  background: radial-gradient(circle at top left, #2b163e, #1b102c 80%);
+  color: #f4f0ff;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 25px 50px rgba(0,0,0,0.25);
+  display: none;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all .4s ease;
+  overflow: hidden;
+  position: relative;
+}
+.chat-window.show { display:block; opacity:1; transform:translateY(0); }
+.chat-window::before {
+  content:'';
+  position:absolute; top:0; left:0; right:0; height:2px;
+  background:linear-gradient(90deg,#b57aff,#9b59b6,#b57aff);
+  animation: moveLine 3s linear infinite;
+}
+@keyframes moveLine { 0%{background-position:0 0}100%{background-position:200% 0} }
+
+.chat-header {
+  font-weight:700;
+  font-size:18px;
+  margin-bottom:6px;
+}
+.chat-example {
+  background:rgba(255,255,255,0.08);
+  padding:6px 10px;
+  border-radius:8px;
+  font-size:13px;
+  margin-top:6px;
+  cursor:pointer;
+  transition:background .2s;
+}
+.chat-example:hover { background:rgba(255,255,255,0.15); }
+
+/* Loading orbs animation */
+.loading-orbs {
+  display:flex;gap:6px;margin:8px auto 12px auto;justify-content:center;
+}
+.loading-orbs div {
+  width:8px;height:8px;border-radius:50%;
+  background:#b57aff;
+  animation: pulse 1s infinite ease-in-out;
+}
+.loading-orbs div:nth-child(2){animation-delay:.2s;}
+.loading-orbs div:nth-child(3){animation-delay:.4s;}
+@keyframes pulse {
+  0%,100%{opacity:.3;transform:scale(.9)}
+  50%{opacity:1;transform:scale(1.2)}
+}
+
+    .chat-window.show{ display:block; opacity:1; transform:translateY(0); }
+    body.dark .chat-window{ background:var(--card-dark); }
+
+    /* page entrance transitions for a nicer feel */
+    .stagger { opacity:0; transform:translateY(12px); transition: all .42s cubic-bezier(.2,.9,.2,1); }
+    .stagger.show { opacity:1; transform:translateY(0); }
+
+    /* responsive */
+    @media (max-width: 980px){
+      .sidebar{ width:72px; padding:14px }
+      .header{ left:72px }
+      main{ margin-left:72px; padding:86px 12px }
+      .stats{ grid-template-columns: repeat(2,1fr) }
+      .courses-grid{ justify-content:flex-start }
+    }
+  </style>
 </head>
 <body>
-    <div class="container-fluid">
-        
-        <nav id="sidebar" class="sidebar">
-            <div class="sidebar-header">
-                <img src="../img/logo.png" alt="Lingoland Logo" class="logo">
-            </div>
-            <ul class="list-unstyled">
-                <li><a href="user-dashboard.php"><img src="../img/icon10.png" alt="Home Icon"> Dashboard</a></li>
-                <li><a href="#"><img src="../img/icon9.png" alt="Profile Icon"> User Profile</a></li>
-                <li><a href="../courses/courses.php"><img src="../img/icon11.png" alt="Courses Icon"> Courses</a></li>
-                <li><a href="../leaderboard/view_leaderboard.php"><img src="../img/icon12.png" alt="Leaderboard Icon"> Leaderboard</a></li>
-                <li><a href="../user_badge/user_badge.php"><img src="../img/icon13.png" alt="Badges Icon"> Badges</a></li>
-                <li><a href="../user_flashcards/user_flashcards.php"><img src="../img/icon14.png" alt="Flashcards Icon"> Flashcards</a></li>
-                <li><a href="../user_dashboard_words/user_dashboard_words.php"><img src="../img/icon26.png" alt="Vocabulary Icon"> Vocabulary</a></li>
-                <li><a href="../user_forum_post/user_forum_post.php"><img src="../img/icon15.png" alt="Forum Icon"> Forum</a></li>
-                <li><a href="../settings/settings.php"><img src="../img/icon16.png" alt="Settings Icon"> Settings</a></li>
-                <li><a href="../user_certificate/user_certificate.php"><img src="../img/icon17.png" alt="Certificate Icon"> Certificates</a></li>
-                <li><a href="#"><img src="../img/icon18.png" alt="Notifications Icon"> Notifications</a></li>
-                <li><a href="../user_message/user_message.php"><img src="../img/icon19.png" alt="Contact Icon"> Contact Us</a></li>
-                <li><a href="../user_dashboard/logout.php"><img src="../img/icon24.png" alt="Logout Icon"> Logout</a></li>
-            </ul>
-        </nav>
 
-      
-        <div class="main-content">
-            
-            <nav class="navbar navbar-expand-lg navbar-light bg-light">
-                <a class="navbar-brand" href="#">Lingoland Dashboard</a>
-                <div class="profile">
-                    <img src="../img/icon9.png" alt="User" class="profile-pic">
-                    <div class="dropdown">
-                        <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
-                            User
-                        </button>
-                        <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton">
-                            <li><a class="dropdown-item" href="#">Settings</a></li>
-                            <li><a class="dropdown-item" href="logout.php">Logout</a></li>
-                        </ul>
-                    </div>
-                </div>
-            </nav>
-
-           
-            <div class="dashboard-main">
-               
-                <div class="hero-section">
-                    <h1>Welcome Back to Lingoland!</h1>
-                    <p>Your personalized learning journey continues. Let's make today a great day!</p>
-                    <a href="../courses/courses.php" class="cta-button">Start Learning</a>
-                </div>
-
-                
-                <div class="row stats-row">
-                    <div class="col-md-4 stat-box completed-courses">
-                        <h5>Completed Courses</h5>
-                        <h4>25</h4>
-                    </div>
-                    <div class="col-md-4 stat-box badges-earned">
-                        <h5>Badges Earned</h5>
-                        <h4>5</h4>
-                    </div>
-                    <div class="col-md-4 stat-box streak">
-                        <h5>Streak</h5>
-                        <h4>7 days</h4>
-                    </div>
-                </div>
-
-                
-                <div class="row">
-                    
-                    <div class="col-md-6 progress-section">
-                        <h4>Your Learning Progress</h4>
-                        <div class="progress-container">
-                            <div class="progress-bar" style="width: 80%;">Course 1: 80%</div>
-                            <div class="progress-bar" style="width: 60%;">Course 2: 60%</div>
-                            <div class="progress-bar" style="width: 40%;">Course 3: 40%</div>
-                        </div>
-                    </div>
-
-                   
-                    <div class="col-md-6 upcoming-lessons">
-                        <h4>Upcoming Lessons</h4>
-                        <ul>
-                            <li>Lesson 1 - 12 July</li>
-                            <li>Lesson 2 - 15 July</li>
-                            <li>Lesson 3 - 18 July</li>
-                        </ul>
-                    </div>
-                </div>
-
-                
-                <div class="leaderboard">
-                    <h4>Top 5 Users</h4>
-                    <ul>
-                        <li>User 1 - 1000 points</li>
-                        <li>User 2 - 950 points</li>
-                        <li>User 3 - 900 points</li>
-                        <li>User 4 - 850 points</li>
-                        <li>User 5 - 800 points</li>
-                    </ul>
-                    <a href="#">View More</a>
-                </div>
-            </div>
-        </div>
+  <!-- SIDEBAR -->
+  <aside class="sidebar" aria-label="Main sidebar">
+    <div class="brand">
+      <div class="logo-circle">L</div>
+      <div style="line-height:1">
+        <div style="font-weight:800">Lingoland</div>
+      </div>
     </div>
-    
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.min.js"></script>
+
+    <nav class="menu" aria-label="Main menu">
+      <a href="#"><i class="fas fa-home"></i> <span>Home</span></a>
+      <a href="#"><i class="fas fa-book"></i> <span>Courses</span></a>
+      <a href="#"><i class="fas fa-pencil-alt"></i> <span>Quiz</span></a>
+      <a href="#"><i class="fas fa-trophy"></i> <span>Leaderboard</span></a>
+
+      <a href="#" id="flashToggle"><span><i class="fas fa-th-large"></i> Flashcards</span><i class="fas fa-chevron-right"></i></a>
+      <div class="sub" id="flashSub">
+        <a href="#">Review Flashcards</a>
+        <a href="#">Add New Flashcard</a>
+      </div>
+
+      <a href="#" id="vocabToggle"><span><i class="fas fa-language"></i> Vocabulary</span><i class="fas fa-chevron-right"></i></a>
+      <div class="sub" id="vocabSub">
+        <a href="#">Study New Words</a>
+        <a href="#">Your Dictionary</a>
+      </div>
+
+      <a href="#"><i class="fas fa-comments"></i> <span>Forum</span></a>
+      <a href="#"><i class="fas fa-award"></i> <span>Badge</span></a>
+      <a href="#"><i class="fas fa-certificate"></i> <span>Certificates</span></a>
+      <a href="#"><i class="fas fa-robot"></i> <span>AI Writing Assistant</span></a>
+      <a href="#"><i class="fas fa-sign-out-alt"></i> <span>Logout</span></a>
+    </nav>
+  </aside>
+
+  <!-- HEADER -->
+  <header class="header" role="banner">
+    <div class="left">
+      <div class="logo" style="gap:12px;">
+        <div class="logo-circle" style="width:44px;height:44px;font-size:18px">L</div>
+      </div>
+    </div>
+    <div class="info" style="font-size: larger;"><strong>USER DASHBOARD</strong><small style= "color:var(--muted)" ></small></div>
+
+    <div class="right">
+      <button id="notifBtn" class="icon-btn" title="Notifications">🔔</button>
+      <div id="notifPop" class="popup" style="right:160px">New lesson released • 2h ago</div>
+
+      <button id="msgBtn" class="icon-btn" title="Messages">📩</button>
+      <div id="msgPop" class="popup" style="right:120px">Message: “Great practice today!”</div>
+
+      <button id="settingsBtn" class="icon-btn" title="Settings (spinning)"><i class="fas fa-cog"></i></button>
+
+      <button id="themeBtn" class="icon-btn" title="Toggle theme">🌓</button>
+
+      <img id="profilePic" src="https://i.pravatar.cc/52?img=12" alt="profile" style="width:46px;height:46px;border-radius:10px;cursor:pointer;border:2px solid rgba(0,0,0,0.06)">
+
+      <div id="profileMenu" class="popup" style="right:20px;">
+        <div style="display:flex;gap:8px;align-items:center"><img src="https://i.pravatar.cc/48?img=12" style="width:40px;height:40px;border-radius:8px" alt=""><div><strong>Ramisa Anjum</strong><div style="font-size:12px;color:var(--muted)">Intermediate • Bangladesh</div></div></div>
+        <hr style="margin:8px 0">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <a href="#" style="text-decoration:none;color:inherit">📥 Inbox</a>
+          <a href="#" style="text-decoration:none;color:inherit">🔔 Notifications</a>
+          <a href="#" style="text-decoration:none;color:inherit">🗂 Taskboard</a>
+          <a href="#" style="text-decoration:none;color:inherit">🚪 Logout</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- SETTINGS PANEL (right slide-in) -->
+ <!-- SETTINGS PANEL (updated with profile editing UI) -->
+<aside id="settingsPanel" class="settings-panel" aria-hidden="true">
+  <button class="settings-close" id="settingsClose"><i class="fas fa-times"></i></button>
+
+  <div class="settings-profile">
+    <div class="profile-photo">
+      <img id="settingsProfilePic" src="https://i.pravatar.cc/120?img=12" alt="Profile Picture">
+      <button id="editPhotoBtn" class="edit-photo"><i class="fas fa-pen"></i></button>
+      <input type="file" id="photoInput" accept="image/*" hidden>
+    </div>
+    <h3 id="userFullName">Ramisa Anjum</h3>
+    <p id="userEmail">ramisa.anjum345@gmail.com</p>
+  </div>
+
+  <div class="settings-section">
+    <h4>Profile</h4>
+    <div class="field-group">
+      <input type="text" id="firstName" value="Ramisa" disabled>
+      <button class="edit-btn" data-field="firstName"><i class="fas fa-pen"></i></button>
+    </div>
+    <div class="field-group">
+      <input type="text" id="lastName" value="Anjum" disabled>
+      <button class="edit-btn" data-field="lastName"><i class="fas fa-pen"></i></button>
+    </div>
+  </div>
+
+  <div class="settings-section">
+    <h4>Account</h4>
+    <div class="field-group">
+      <input type="email" id="emailField" value="ramisa.anjum345@gmail.com" disabled>
+      <button class="edit-btn" data-field="emailField"><i class="fas fa-pen"></i></button>
+    </div>
+    <div class="field-group">
+      <input type="password" id="passwordField" value="••••••" disabled>
+      <button class="edit-btn" data-field="passwordField"><i class="fas fa-pen"></i></button>
+    </div>
+  </div>
+</aside>
+
+  <!-- MAIN -->
+  <main>
+    <h1>Welcome, Ramisa! 🌸 Continue your language expedition</h1>
+
+    <!-- STAT CARDS -->
+    <section class="stats" aria-label="Key statistics">
+      <div class="card"><h4>Total Score</h4><div class="stat-large">1,050</div><div style="margin-top:10px;color:var(--muted)">Overall points</div><div style="margin-top:10px"><canvas id="mini1" class="mini-canvas"></canvas></div></div>
+      <div class="card"><h4>Total Lessons</h4><div class="stat-large">5</div><div style="margin-top:10px;color:var(--muted)">Completed lessons</div><div style="margin-top:10px"><canvas id="mini2" class="mini-canvas"></canvas></div></div>
+      <div class="card"><h4>Streak</h4><div class="stat-large">4 days</div><div style="margin-top:10px;color:var(--muted)">Daily practice streak</div><div style="margin-top:10px"><canvas id="mini3" class="mini-canvas"></canvas></div></div>
+      <div class="card"><h4>Badges</h4><div class="stat-large">4</div><div style="margin-top:10px;color:var(--muted)">Achievements unlocked</div><div style="margin-top:10px"><canvas id="mini4" class="mini-canvas"></canvas></div></div>
+    </section>
+
+    <!-- Charts row -->
+    <section class="charts-row" aria-label="Progress charts">
+      <div class="chart-box"><h4 style="margin:0 0 8px 0">Weekly Time Spent</h4><small style="color:var(--muted)">Average minutes per day × 7</small><div style="height:180px;margin-top:12px"><canvas id="lineChart"></canvas></div></div>
+
+      <div class="chart-box" style="width:360px"><h4 style="margin:0 0 8px 0">Course Type Split</h4><small style="color:var(--muted)">Time share by category</small><div style="height:180px;margin-top:12px"><canvas id="pieChart"></canvas></div></div>
+
+      <div class="chart-box" style="width:420px"><h4 style="margin:0 0 8px 0">Course Progress (Top)</h4><small style="color:var(--muted)">Top 5 courses by completion</small><div style="height:180px;margin-top:12px"><canvas id="barChart"></canvas></div></div>
+    </section>
+
+    <!-- Recommended -->
+    <section class="courses">
+      <h3 style="margin-top:18px">Recommended Courses</h3>
+      <div class="courses-grid" role="list">
+        <div class="course-card" role="listitem">
+          <div class="cc-icon">📘</div>
+          <div class="cc-content">
+            <strong>IELTS Intensive</strong>
+            <div class="interest">Because you love structured prep</div>
+            <div style="margin-top:12px"><button class="icon-btn" style="background:var(--lilac-1);color:#fff;padding:6px 10px;border-radius:8px">Start</button></div>
+          </div>
+        </div>
+
+        <div class="course-card">
+          <div class="cc-icon">💬</div>
+          <div class="cc-content">
+            <strong>Everyday Conversation</strong>
+            <div class="interest">Because you’re a casual learner</div>
+            <div style="margin-top:12px"><button class="icon-btn" style="background:#f1f1f1;border-radius:8px;padding:6px 10px">Preview</button></div>
+          </div>
+        </div>
+
+        <div class="course-card">
+          <div class="cc-icon">💼</div>
+          <div class="cc-content">
+            <strong>Business English</strong>
+            <div class="interest">Because you picked “Career Growth”</div>
+            <div style="margin-top:12px"><button class="icon-btn" style="background:#fff7e6;color:var(--lilac-1);border-radius:8px;padding:6px 10px">New</button></div>
+          </div>
+        </div>
+
+        <div class="course-card">
+          <div class="cc-icon">✍️</div>
+          <div class="cc-content">
+            <strong>Grammar Essentials</strong>
+            <div class="interest">Because you chose “Accuracy”</div>
+            <div style="margin-top:12px"><button class="icon-btn" style="background:var(--lilac-2);color:#fff;padding:6px 10px;border-radius:8px">Open</button></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Leaderboard -->
+    <section class="leaderboard">
+      <h3 style="margin-top:22px">Leaderboard</h3>
+      <div style="margin-top:12px">
+        <div class="leader-row">
+          <div style="display:flex;gap:12px;align-items:center">
+            <div class="rank-badge rank1">1</div>
+            <div><strong>Ayesha</strong><div style="font-size:12px;color:var(--muted)">Bangladesh</div></div>
+          </div>
+          <div style="font-weight:700">6,210 pts 🏆</div>
+        </div>
+
+        <div class="leader-row">
+          <div style="display:flex;gap:12px;align-items:center">
+            <div class="rank-badge rank2">2</div>
+            <div><strong>Kamal</strong><div style="font-size:12px;color:var(--muted)">Pakistan</div></div>
+          </div>
+          <div style="color:var(--muted)">5,100 pts</div>
+        </div>
+
+        <div class="leader-row">
+          <div style="display:flex;gap:12px;align-items:center">
+            <div class="rank-badge rank3">3</div>
+            <div><strong>Rita</strong><div style="font-size:12px;color:var(--muted)">Nepal</div></div>
+          </div>
+          <div style="color:var(--muted)">4,900 pts</div>
+        </div>
+
+      </div>
+    </section>
+  </main>
+
+  <!-- Chatbot & quick -->
+<div class="chatbot" aria-hidden="false">
+  <div class="chat-window" id="chatWindow">
+    <div class="chat-header">💬 LingAI — Your Smart Tutor</div>
+
+    <p style="font-size:13px;color:#d0b3ff;margin-bottom:8px;">Hello! Ask anything about English learning 🌟</p>
+
+    <div class="loading-orbs">
+      <div></div><div></div><div></div>
+    </div>
+
+    <div style="font-size:12px;color:#c8b9e6;margin-bottom:8px;">Try these:</div>
+    <div class="chat-example">“Give me 3 idioms for confidence.”</div>
+    <div class="chat-example">“Correct this: I goes to school.”</div>
+    <div class="chat-example">“Explain present perfect in one line.”</div>
+
+    <div style="margin-top:14px;display:flex;gap:8px;">
+      <input id="chatInput" placeholder="Type your question..."
+             style="flex:1;padding:8px;border-radius:8px;border:none;
+             background:rgba(255,255,255,0.08);color:#fff;margin-top: 30px;">
+      <button id="chatSend"
+              style="padding:8px 14px;border-radius:8px;background:#b57aff;
+              color:#fff;border:0;font-weight:600;margin-top: 30px;">Send</button>
+    </div>
+  </div>
+
+  <!-- the chatbot floating button -->
+  <button class="chatbot-btn" id="chatBtn" title="Open AI Tutor">
+    <i class="fas fa-robot"></i>
+  </button>
+</div>
+
+
+
+  <script>
+    // --------- POPUPS ----------
+    const notifBtn=document.getElementById('notifBtn');
+    const msgBtn=document.getElementById('msgBtn');
+    const notifPop=document.getElementById('notifPop');
+    const msgPop=document.getElementById('msgPop');
+    const profilePic=document.getElementById('profilePic');
+    const profileMenu=document.getElementById('profileMenu');
+
+    notifBtn.onclick=()=>{ notifPop.classList.toggle('show'); msgPop.classList.remove('show'); profileMenu.classList.remove('show'); }
+    msgBtn.onclick=()=>{ msgPop.classList.toggle('show'); notifPop.classList.remove('show'); profileMenu.classList.remove('show'); }
+    profilePic.onclick=()=>{ profileMenu.classList.toggle('show'); notifPop.classList.remove('show'); msgPop.classList.remove('show'); }
+
+    // close popups on outside click
+    document.addEventListener('click', (e) => {
+      if (!notifBtn.contains(e.target) && !notifPop.contains(e.target)) notifPop.classList.remove('show');
+      if (!msgBtn.contains(e.target) && !msgPop.contains(e.target)) msgPop.classList.remove('show');
+      if (!profilePic.contains(e.target) && !profileMenu.contains(e.target)) profileMenu.classList.remove('show');
+    });
+
+    // --------- THEME ----------
+    const themeBtn=document.getElementById('themeBtn');
+    if(localStorage.getItem('lingo_theme')==='dark') document.body.classList.add('dark');
+    themeBtn.onclick=()=>{ document.body.classList.toggle('dark'); localStorage.setItem('lingo_theme', document.body.classList.contains('dark')?'dark':'light'); }
+
+    // --------- SETTINGS PANEL ----------
+    const settingsBtn=document.getElementById('settingsBtn');
+    const settingsPanel=document.getElementById('settingsPanel');
+    const settingsClose=document.getElementById('settingsClose');
+    settingsBtn.onclick=()=>settingsPanel.classList.toggle('open');
+    settingsClose.onclick=()=>settingsPanel.classList.remove('open');
+
+    // --------- SUBMENUS ----------
+    const flashToggle=document.getElementById('flashToggle');
+    const vocabToggle=document.getElementById('vocabToggle');
+    flashToggle.onclick=(e)=>{ e.preventDefault(); document.getElementById('flashSub').classList.toggle('show'); flashToggle.querySelector('i.fa-chevron-right').classList.toggle('fa-rotate-90'); }
+    vocabToggle.onclick=(e)=>{ e.preventDefault(); document.getElementById('vocabSub').classList.toggle('show'); vocabToggle.querySelector('i.fa-chevron-right').classList.toggle('fa-rotate-90'); }
+
+    // --------- CHATBOT ----------
+    const chatBtn=document.getElementById('chatBtn');
+    const chatWindow=document.getElementById('chatWindow');
+    chatBtn.onclick=()=>chatWindow.classList.toggle('show');
+    document.getElementById('chatSend').onclick=()=>{
+      const q=document.getElementById('chatInput').value.trim();
+      if(!q) return alert('Type something!');
+      alert('AI Tutor: Try “I have been learning English for three years.”');
+    };
+
+    // --- Enhanced chatbot interactions ---
+document.querySelectorAll('.chat-example').forEach(e=>{
+  e.addEventListener('click',()=>{
+    document.getElementById('chatInput').value = e.textContent;
+  });
+});
+
+// Fake typing effect
+const sendBtn = document.getElementById('chatSend');
+sendBtn.onclick = ()=>{
+  const val = document.getElementById('chatInput').value.trim();
+  if(!val) return alert('Type a question!');
+  const orbs = document.querySelector('.loading-orbs');
+  orbs.style.opacity='1';
+  setTimeout(()=>{
+    orbs.style.opacity='0';
+    alert('LingAI: Practice makes perfect! Keep learning. 🌸');
+  },1200);
+};
+
+    // --------- Mini line charts with hover tooltips (Chart.js) ----------
+    function mini(id,data,color){
+      new Chart(document.getElementById(id),{
+        type:'line',
+        data:{labels:data.map((_,i)=>i+1),datasets:[{data,borderColor:color,fill:false,tension:.35,pointRadius:3}]},
+        options:{plugins:{legend:{display:false},tooltip:{enabled:true}},scales:{x:{display:false},y:{display:false}}}
+      });
+    }
+    mini('mini1',[200,220,240,230,260,280,300],'#ffd26f');
+    mini('mini2',[2,0,0,1,0,2,0],'#a2d2ff');
+    mini('mini3',[1,1,1,2,2,2,2],'#b6e3a8');
+    mini('mini4',[0,1,0,1,1,0,1],'#ffc4d6');
+
+    // --------- MAIN CHARTS ----------
+    new Chart(document.getElementById('lineChart'),{
+      type:'line',
+      data:{
+        labels:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+        datasets:[{label:'Minutes',data:[30,20,25,45,0,0,0],borderColor:'#9b59b6',backgroundColor:'rgba(155,89,182,0.2)',fill:true,tension:.4}]
+      },
+      options:{plugins:{tooltip:{mode:'index',intersect:false}},scales:{y:{beginAtZero:true}}}
+    });
+
+    new Chart(document.getElementById('pieChart'),{
+      type:'doughnut',
+      data:{labels:['Conversation','Business','IELTS','Everyday'],datasets:[{data:[32,18,30,20],backgroundColor:['#6a4c93','#9b59b6','#ffd26f','#a2d2ff']}]},
+      options:{plugins:{legend:{position:'bottom'}}}
+    });
+
+    new Chart(document.getElementById('barChart'),{
+      type:'bar',
+      data:{labels:['IELTS','Conversation','Business','Grammar','Pronunciation'],datasets:[{data:[80,65,50,40,30],backgroundColor:['#9b59b6','#6a4c93','#ffd26f','#a2d2ff','#b6e3a8']}]},
+      options:{indexAxis:'y',plugins:{tooltip:{enabled:true},legend:{display:false}},scales:{x:{max:100,beginAtZero:true}}}
+    });
+
+    // --------- Entrance animations (staggered) ----------
+    window.addEventListener('DOMContentLoaded', ()=> {
+      // stagger stat cards
+      document.querySelectorAll('.card').forEach((el,i)=>{
+        setTimeout(()=> el.classList.add('enter'), 120 + i*90);
+      });
+      // charts
+      document.querySelectorAll('.chart-box').forEach((el,i)=>{
+        setTimeout(()=> el.classList.add('enter'), 300 + i*140);
+      });
+      // course cards
+      document.querySelectorAll('.course-card').forEach((el,i)=>{
+        setTimeout(()=> el.classList.add('enter'), 520 + i*120);
+      });
+      // leaderboard rows
+      document.querySelectorAll('.leader-row').forEach((el,i)=>{
+        setTimeout(()=> el.classList.add('enter'), 760 + i*120);
+      });
+    });
+
+    // accessibility: keyboard toggles for sidebar submenus
+    flashToggle.addEventListener('keydown', e => { if(e.key==='Enter') flashToggle.click() });
+    vocabToggle.addEventListener('keydown', e => { if(e.key==='Enter') vocabToggle.click() });
+
+    // -------- SETTINGS PANEL BEHAVIOR --------
+
+// profile photo upload
+const editPhotoBtn = document.getElementById('editPhotoBtn');
+const photoInput = document.getElementById('photoInput');
+const profileImg = document.getElementById('settingsProfilePic');
+editPhotoBtn.addEventListener('click', () => photoInput.click());
+photoInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      profileImg.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  }
+});
+
+// editable fields toggle
+document.querySelectorAll('.edit-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const fieldId = btn.getAttribute('data-field');
+    const field = document.getElementById(fieldId);
+    const icon = btn.querySelector('i');
+
+    if (field.disabled) {
+      field.disabled = false;
+      field.focus();
+      icon.classList.replace('fa-pen', 'fa-save');
+      field.style.borderBottom = '2px solid var(--lilac-2)';
+    } else {
+      field.disabled = true;
+      icon.classList.replace('fa-save', 'fa-pen');
+      field.style.borderBottom = 'none';
+      alert(`Saved: ${field.value}`);
+    }
+  });
+});
+
+  </script>
+
 </body>
 </html>

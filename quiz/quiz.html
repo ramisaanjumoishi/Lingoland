@@ -1,0 +1,858 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Lingoland — Quiz Arena</title>
+
+  <!-- Fonts & Icons -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root {
+      --lilac-1: #6a4c93;
+      --lilac-2: #9b59b6;
+      --bg-light: #f6f7fb;
+      --card-light: #ffffff;
+      --text-light: #222;
+      --bg-dark: #0f1115;
+      --card-dark: #16171b;
+      --text-dark: #e9eefc;
+      --gradient: linear-gradient(135deg, #6a4c93, #9b59b6);
+      --muted: #6b6b6b;
+      --accent-1: #ffd26f;
+      --accent-2: #b57aff;
+    }
+    *{box-sizing:border-box}
+    body {
+      margin: 0;
+      font-family: 'Poppins', 'Nunito', system-ui, sans-serif;
+      background: var(--bg-light);
+      color: var(--text-light);
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      transition: background .28s ease, color .28s ease;
+      min-height:100vh;
+    }
+    body.dark {
+      background: var(--bg-dark);
+      color: var(--text-dark);
+    }
+
+   
+
+body.dark .chat-window {
+  background: radial-gradient(circle at top left, #1c122b, #0f0a1a 80%);
+  color: #e9e6ff;
+}
+
+
+
+    /* SIDEBAR (same as dashboard) */
+    .sidebar{
+      position: fixed; left:0; top:0;
+      width: 240px; height:100vh;
+      background: linear-gradient(180deg,var(--lilac-1),var(--lilac-2));
+      color:#fff; padding:22px 14px; overflow:auto;
+      display:flex; flex-direction:column; gap:8px;
+      z-index:60;
+    }
+    .sidebar::-webkit-scrollbar { width:6px; }
+    .sidebar::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.3); border-radius:8px; }
+    .brand { display:flex; gap:12px; align-items:center; margin-bottom:12px; }
+    .logo-circle{ width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:800;
+      background:linear-gradient(135deg,rgba(255,255,255,0.12),rgba(255,255,255,0.06));
+      box-shadow: 0 8px 22px rgba(0,0,0,0.12); font-size:20px;
+    }
+    nav.menu{ display:flex; flex-direction:column; gap:6px; }
+    nav.menu a{
+      display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;color:rgba(255,255,255,0.95);text-decoration:none;
+      transition:background .18s, transform .15s; font-weight:600;
+    }
+    nav.menu a:hover{background: rgba(255,255,255,0.08); transform: translateX(6px)}
+    .sub {display:none; margin-left:18px; flex-direction:column; gap:6px; margin-top:6px}
+    .sub a{font-weight:500; font-size:14px; padding-left:18px; color:rgba(255,255,255,0.9)}
+
+    .sub.show {
+  display: flex;
+  animation: fadeIn .25s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+
+    /* HEADER (same as dashboard) */
+    .header {
+      position: fixed; left:240px; right:0; top:0; height:64px;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:10px 20px; background: var(--card-light); border-bottom:1px solid rgba(0,0,0,0.04);
+      z-index: 70; transition: background .24s;
+    }
+    body.dark .header { background: var(--card-dark); border-bottom:1px solid rgba(255,255,255,0.04) }
+    .header .left {display:flex;align-items:center; gap:14px}
+    .header .right { display:flex; align-items:center; gap:12px; position:relative }
+    .icon-btn{ background:transparent;border:0;padding:8px;border-radius:8px;cursor:pointer;font-size:16px; }
+
+   /* Settings infinite spin */
+    #settingsBtn { font-size:18px; color:var(--muted); }
+    #settingsBtn { animation: rotating 8s linear infinite; }
+    @keyframes rotating { 0%{ transform:rotate(0deg) } 100%{ transform:rotate(360deg) } }
+
+    /* small popups */
+    .popup {
+      position:absolute; top:62px; right:20px; width:280px; display:none; background:var(--card-light); border-radius:10px;
+      box-shadow:0 12px 30px rgba(0,0,0,0.12); padding:10px; z-index:80;
+    }
+    body.dark .popup { background:var(--card-dark) }
+    .popup.show { display:block }
+
+
+    
+    /* settings panel */
+    .settings-panel{ position: fixed; right:-360px; top:0; width:340px; height:100vh; background:var(--card-light);
+      box-shadow:-16px 0 40px rgba(0,0,0,0.14); padding:18px; transition:right .32s ease; z-index:90; }
+    .settings-panel.open{ right:0; }
+    .settings-close{ position:absolute; top:10px; right:14px; background:none; border:none; color:var(--muted); font-size:20px; cursor:pointer; }
+    body.dark .settings-panel{ background:var(--card-dark); }
+    
+    .popup {
+      position:absolute; top:62px; right:20px; width:300px; display:none; background:var(--card-light); border-radius:10px;
+      box-shadow:0 12px 30px rgba(0,0,0,0.12); padding:12px; z-index:80;
+    }
+    body.dark .popup { background:var(--card-dark) }
+    .popup.show { display:block }
+
+    /* MAIN area */
+    main{ margin-left:240px; padding:94px 32px 48px 32px; min-height:100vh; transition: all .4s ease; }
+
+    /* QUIZ LAYOUT */
+    .quiz-wrap {
+      display:flex; gap:20px; align-items:stretch;
+      justify-content:center;
+      width:100%;
+      max-width:1200px;
+      margin: 0 auto;
+      transition: all .4s ease;
+    }
+
+    /* LEFT - progress column */
+    .quiz-side {
+      width:120px;
+      display:flex;
+      flex-direction:column;
+      gap:18px;
+      align-items:center;
+      justify-content:flex-start;
+    }
+    .score-ring {
+      width:110px; height:110px; border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      background: conic-gradient(var(--lilac-1) 0deg, var(--lilac-2) 90deg, rgba(0,0,0,0.06) 0deg);
+      box-shadow:0 10px 28px rgba(11,11,12,0.06);
+      position:relative;
+      transition: all .4s ease;
+    }
+    .score-ring .score-inner {
+      width:80px;height:80px;border-radius:50%;background:var(--card-light);display:flex;align-items:center;justify-content:center;font-weight:700;
+      color:var(--text-light); box-shadow: inset 0 2px 6px rgba(0,0,0,0.04);
+    }
+    body.dark .score-ring .score-inner { background:var(--card-dark); color:var(--text-dark) }
+
+    .q-count { font-size:13px;color:var(--muted); margin-top:6px; text-align:center }
+
+    /* RIGHT - quiz card */
+    .quiz-card {
+      flex:1; min-width:420px; max-width:900px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(250,246,255,0.95));
+      border-radius:18px;
+      padding:22px;
+      box-shadow:0 18px 50px rgba(11,11,12,0.06);
+      position:relative;
+      overflow:hidden;
+      transition: all .36s cubic-bezier(.2,.9,.2,1);
+    }
+    body.dark .quiz-card { background: linear-gradient(180deg,#1a1420,#23142c); }
+
+    /* Question gradient box (like image) */
+    .question-box {
+      border-radius:12px;
+      padding:28px;
+      min-height:140px;
+      display:flex;align-items:center;justify-content:center;text-align:center;
+      font-weight:700;color:var(--text-light);
+      background: linear-gradient(90deg, #fce6d6 0%, #ffd2b3 35%, #f6d1ff 72%);
+      box-shadow: inset 0 -6px 20px rgba(0,0,0,0.02);
+      transition: transform .35s ease, box-shadow .35s ease, background .35s ease;
+    }
+    body.dark .question-box { background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); color:var(--text-dark) }
+
+    /* time bar below question */
+    .time-row { display:flex; align-items:center; gap:12px; margin-top:12px; }
+    .time-track { flex:1; height:10px; border-radius:8px; background:rgba(0,0,0,0.06); overflow:hidden; }
+    .time-progress { height:100%; width:0%; background: linear-gradient(90deg,#ffd26f,#b57aff,#9b59b6); transition: width .3s linear; }
+
+    .time-label { width:56px; text-align:right; font-weight:600; color:var(--muted); font-size:13px; }
+
+    /* Options */
+    .options { margin-top:18px; display:flex; flex-direction:column; gap:12px; }
+    .option {
+      padding:12px 14px; border-radius:10px; background:var(--card-light); cursor:pointer;
+      box-shadow:0 6px 18px rgba(11,11,12,0.04); display:flex; align-items:center; gap:12px; transition: all .26s ease;
+    }
+    body.dark .option { background: #121217; box-shadow: 0 6px 18px rgba(0,0,0,0.14); }
+    .option:hover { transform: translateY(-4px); }
+    .option .label { width:36px;height:36;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;background:rgba(0,0,0,0.04);color:var(--muted) }
+    .option .text { flex:1; font-weight:600; color:var(--text-light) }
+    body.dark .option .text { color:var(--text-dark) }
+
+    /* selected option gradient */
+    .option.selected {
+      background: linear-gradient(90deg,#ffd26f,#b57aff 60%, #9b59b6);
+      color: #fff;
+      box-shadow: 0 18px 50px rgba(150,90,170,0.12);
+      transform: translateY(-6px) scale(1.01);
+    }
+    .option.selected .label { background: rgba(255,255,255,0.15); color: #fff; }
+
+     body.dark .question-box {
+  background: linear-gradient(90deg,#ffd26f,#b57aff 60%, #9b59b6);
+  color: var(--text-dark);
+}
+body.dark .option.selected {
+  background: linear-gradient(90deg,#ffd26f,#b57aff 60%, #9b59b6);
+  color: #fff;
+}
+
+    /* bottom controls */
+    .controls { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:18px; }
+    .btn {
+      padding:10px 16px; border-radius:10px; border:0; font-weight:700; cursor:pointer; transition: all .22s ease;
+    }
+    .btn.secondary { background:transparent; border:1px solid rgba(0,0,0,0.06); color:var(--muted) }
+    .btn.primary { background:var(--lilac-1); color:white; box-shadow:0 12px 30px rgba(106,76,147,0.18) }
+    .btn.primary:hover { transform: translateY(-3px); }
+
+    /* summary overlay */
+    .summary {
+      position:absolute; inset:0; display:flex;align-items:center;justify-content:center;
+      background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,255,255,0.98));
+      backdrop-filter: blur(6px);
+      z-index:30; visibility:hidden; opacity:0; transform: scale(.98); transition: all .36s ease;
+    }
+    .summary.show { visibility:visible; opacity:1; transform: scale(1); }
+    .summary-card {
+      width:520px; max-width:94%; padding:22px; border-radius:14px; background:var(--card-light);
+      box-shadow:0 24px 60px rgba(11,11,12,0.12); text-align:center;
+    }
+    body.dark .summary { background: linear-gradient(180deg, rgba(10,10,10,0.6), rgba(10,10,10,0.7)); }
+    body.dark .summary-card { background: #14121a; color:var(--text-dark) }
+
+    .summary-card h3 { margin:8px 0; font-size:20px }
+    .summary-score { font-size:42px; font-weight:900; margin:6px 0; color:var(--lilac-2) }
+
+    /* small responsive */
+    @media (max-width: 1100px) {
+      .quiz-wrap { flex-direction:column; align-items:center; }
+      .quiz-side { flex-direction:row; width:100%; justify-content:space-around; margin-bottom:12px }
+      .quiz-card { width:100%; max-width:900px }
+    }
+
+    @media (max-width: 600px) {
+      .sidebar { width:72px; }
+      .header { left:72px; }
+      main { margin-left:72px; padding:86px 12px 48px 12px; }
+    }
+
+    /* chatbot */
+    .chatbot{ position: fixed; right:30px; bottom:22px; z-index:120; display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
+    .chatbot-btn{ width:60px; height:60px; border-radius:50%; border:0; background:var(--gradient); color:white; font-size:22px; cursor:pointer; box-shadow:0 12px 36px rgba(0,0,0,0.18); }
+    .chat-window {
+  width: 360px;
+  min-height: 360px;
+  background: radial-gradient(circle at top left, #2b163e, #1b102c 80%);
+  color: #f4f0ff;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 25px 50px rgba(0,0,0,0.25);
+  display: none;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all .4s ease;
+  overflow: hidden;
+  position: relative;
+}
+.chat-window.show { display:block; opacity:1; transform:translateY(0); }
+.chat-window::before {
+  content:'';
+  position:absolute; top:0; left:0; right:0; height:2px;
+  background:linear-gradient(90deg,#b57aff,#9b59b6,#b57aff);
+  animation: moveLine 3s linear infinite;
+}
+@keyframes moveLine { 0%{background-position:0 0}100%{background-position:200% 0} }
+
+.chat-header {
+  font-weight:700;
+  font-size:18px;
+  margin-bottom:6px;
+}
+.chat-example {
+  background:rgba(255,255,255,0.08);
+  padding:6px 10px;
+  border-radius:8px;
+  font-size:13px;
+  margin-top:6px;
+  cursor:pointer;
+  transition:background .2s;
+}
+.chat-example:hover { background:rgba(255,255,255,0.15); }
+
+/* Loading orbs animation */
+.loading-orbs {
+  display:flex;gap:6px;margin:8px auto 12px auto;justify-content:center;
+}
+.loading-orbs div {
+  width:8px;height:8px;border-radius:50%;
+  background:#b57aff;
+  animation: pulse 1s infinite ease-in-out;
+}
+.loading-orbs div:nth-child(2){animation-delay:.2s;}
+.loading-orbs div:nth-child(3){animation-delay:.4s;}
+@keyframes pulse {
+  0%,100%{opacity:.3;transform:scale(.9)}
+  50%{opacity:1;transform:scale(1.2)}
+}
+    .chat-window.show { display:block; opacity:1; transform:translateY(0); }
+    .chat-window::before {
+      content: ''; position:absolute; left:0; right:0; top:0; height:3px;
+      background:linear-gradient(90deg,#b57aff,#9b59b6,#b57aff); background-size:200% 100%;
+      animation: slidebg 3.5s linear infinite;
+    }
+    @keyframes slidebg { from{background-position:0 0} to{background-position:200% 0} }
+
+    .chat-header { font-weight:800; font-size:18px; margin-bottom:8px; }
+    .chat-sub { color:rgba(255,255,255,0.8); font-size:13px; margin-bottom:8px; }
+    .loading-orbs { display:flex; gap:8px; margin:8px 0 12px; }
+    .loading-orbs div { width:10px; height:10px; border-radius:50%; background:#b57aff; opacity:.4; animation: orb 1s infinite ease-in-out; }
+    .loading-orbs div:nth-child(2){ animation-delay:.16s } .loading-orbs div:nth-child(3){ animation-delay:.32s }
+    @keyframes orb { 0%,100%{ transform:scale(.8); opacity:.4 } 50%{ transform:scale(1.2); opacity:1 } }
+
+    .chat-example { background: rgba(255,255,255,0.04); padding:8px 10px; border-radius:8px; margin-top:6px; cursor:pointer; transition:.16s }
+    .chat-example:hover { background: rgba(255,255,255,0.08) }
+
+    .chat-input-row { display:flex; gap:8px; align-items:center; margin-top:12px; }
+    .chat-input { flex:1; padding:10px; border-radius:10px; border:0; background:rgba(255,255,255,0.06); color:#fff; outline:none; }
+    .chat-send { background:linear-gradient(90deg,var(--lilac-2),var(--lilac-1)); color:white; border:0; padding:10px 12px; border-radius:10px; font-weight:700; cursor:pointer; }
+
+    /* entrance animation classes for many elements */
+    .enter { opacity:1 !important; transform:none !important; transition: all .36s cubic-bezier(.2,.9,.2,1) !important; }
+  </style>
+</head>
+<body>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" aria-label="Main sidebar">
+    <div class="brand">
+      <div class="logo-circle">L</div>
+      <div style="line-height:1">
+        <div style="font-weight:800">Lingoland</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.9)">Learn • Practice • Grow</div>
+      </div>
+    </div>
+
+    <nav class="menu" aria-label="Main menu">
+      <a href="#"><i class="fas fa-home"></i> Home</a>
+      <a href="#"><i class="fas fa-book"></i> Courses</a>
+      <a href="#"><i class="fas fa-pencil-alt"></i> Quiz</a>
+      <a href="#"><i class="fas fa-trophy"></i> Leaderboard</a>
+      <a href="#" id="flashToggle"><i class="fas fa-th-large"></i> Flashcards ▸</a>
+      <div class="sub" id="flashSub">
+        <a href="#">Review Flashcards</a>
+        <a href="#">Add New Flashcard</a>
+      </div>
+      <a href="#" id="vocabToggle"><i class="fas fa-language"></i> Vocabulary ▸</a>
+      <div class="sub" id="vocabSub">
+        <a href="#">Study New Words</a>
+        <a href="#">Your Dictionary</a>
+      </div>
+      <a href="#"><i class="fas fa-comments"></i> Forum</a>
+      <a href="#"><i class="fas fa-award"></i> Badge</a>
+      <a href="#"><i class="fas fa-certificate"></i> Certificates</a>
+      <a href="#"><i class="fas fa-robot"></i> AI Writing Assistant</a>
+      <a href="#"><i class="fas fa-sign-out-alt"></i> Logout</a>
+    </nav>
+  </aside>
+
+  <!-- HEADER -->
+  <header class="header" role="banner">
+    <div class="left">
+      <div class="logo" style="gap:12px;">
+        <div class="logo-circle" style="width:44px;height:44px;font-size:18px">L</div>
+      </div>
+      <div style="font-weight:700; font-size:15px;">Quiz Arena</div>
+    </div>
+
+    <div class="right">
+      <button id="notifBtn" class="icon-btn" title="Notifications">🔔</button>
+      <div id="notifPop" class="popup" style="right:160px">
+        <strong>Notifications</strong>
+        <div style="margin-top:10px;font-size:14px;color:var(--muted)">New quiz added • 2h ago</div>
+      </div>
+
+      <button id="msgBtn" class="icon-btn" title="Messages">📩</button>
+      <div id="msgPop" class="popup" style="right:120px">
+        <strong>Messages</strong>
+        <div style="margin-top:10px;font-size:14px;color:var(--muted)"><strong>Anna:</strong> Good luck on the quiz!</div>
+      </div>
+
+      <button id="settingsBtn" class="icon-btn" title="Settings (spinning)"><i class="fas fa-cog"></i></button>
+      <button id="themeBtn" class="icon-btn" title="Toggle theme">🌓</button>
+
+      <img id="profilePic" src="https://i.pravatar.cc/52?img=12" alt="profile" style="width:46px;height:46px;border-radius:10px;cursor:pointer;border:2px solid rgba(0,0,0,0.06)">
+
+      <div id="profileMenu" class="popup" style="right:20px;">
+        <div style="display:flex;gap:8px;align-items:center"><img src="https://i.pravatar.cc/48?img=12" style="width:40px;height:40px;border-radius:8px" alt=""><div><strong>Ramisa Anjum</strong><div style="font-size:12px;color:var(--muted)">Intermediate • Bangladesh</div></div></div>
+        <hr style="margin:8px 0">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <a href="#" style="text-decoration:none;color:inherit">📥 Inbox</a>
+          <a href="#" style="text-decoration:none;color:inherit">🔔 Notifications</a>
+          <a href="#" style="text-decoration:none;color:inherit">🗂 Taskboard</a>
+          <a href="#" style="text-decoration:none;color:inherit">🚪 Logout</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- SETTINGS PANEL -->
+  <aside id="settingsPanel" class="settings-panel" aria-hidden="true" >
+    <button class="settings-close" id="settingsClose" style="position:absolute;top:10px;right:14px;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;"><i class="fas fa-times"></i></button>
+    <h3 style="margin-top:6px">Settings</h3>
+    <p style="color:var(--muted)">Quick preferences</p>
+    <div style="margin-top:12px">
+      <label style="font-weight:600">Notifications</label>
+      <div style="margin-top:8px"><button class="icon-btn" style="background:var(--lilac-1);color:#fff;border-radius:8px;padding:8px 12px">Toggle</button></div>
+    </div>
+    <div style="margin-top:12px">
+      <label style="font-weight:600">Theme</label>
+      <div style="margin-top:8px"><small style="color:var(--muted)">Use the moon icon in header</small></div>
+    </div>
+    <div style="margin-top:18px;color:var(--muted);font-size:13px">Timezone: GMT+6</div>
+  </aside>
+
+  <!-- MAIN -->
+  <main>
+    <div class="quiz-wrap">
+
+      <!-- left column: progress ring -->
+      <div class="quiz-side">
+        <div id="scoreRing" class="score-ring" aria-hidden="true">
+          <div class="score-inner" id="scoreInner">0%</div>
+        </div>
+        <div class="q-count" id="qCount">0 / 5</div>
+        <div style="font-size:13px;color:var(--muted);text-align:center">Progress</div>
+      </div>
+
+      <!-- main quiz card -->
+      <div class="quiz-card" role="region" aria-label="Quiz card">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <div style="font-weight:700;font-size:16px">Round 1 • English Practice</div>
+          <div style="font-size:13px;color:var(--muted)">Question <span id="qIndex">1</span> / <span id="qTotal">5</span></div>
+        </div>
+
+        <div class="question-box" id="questionBox" style="margin-top:16px;">
+          <!-- text populated by JS -->
+          What is the past participle of "write"?
+        </div>
+
+        <div class="time-row" aria-hidden="true">
+          <div style="font-size:13px;color:var(--muted)">Time</div>
+          <div class="time-track" aria-hidden="true"><div class="time-progress" id="timeProgress"></div></div>
+          <div class="time-label" id="timeLabel">00:30</div>
+        </div>
+
+        <div class="options" id="optionsList" role="list">
+          <!-- options injected by JS -->
+        </div>
+
+        <div class="controls">
+          <button class="btn secondary" id="prevBtn" disabled>&larr; Previous</button>
+          <div style="display:flex;gap:10px;align-items:center">
+            <button class="btn secondary" id="skipBtn">Skip</button>
+            <button class="btn primary" id="nextBtn">Next</button>
+          </div>
+        </div>
+
+        <!-- summary overlay -->
+        <div class="summary" id="summaryPanel" aria-hidden="true">
+          <div class="summary-card" role="dialog" aria-modal="true">
+            <div style="font-size:34px">🎉 Congratulations!</div>
+            <h3>You completed the quiz</h3>
+            <div class="summary-score" id="finalScore">0 / 5</div>
+            <div style="margin-top:8px;color:var(--muted)" id="summaryText">Nice work — keep going to improve your streak!</div>
+            <div style="margin-top:14px;display:flex;gap:10px;justify-content:center">
+              <button class="btn secondary" id="tryAgainBtn">Try Again</button>
+              <button class="btn primary" id="closeSummaryBtn">Continue</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Chatbot -->
+  <div class="chatbot" aria-hidden="false">
+    <div class="chat-window" id="chatWindow" role="dialog" aria-modal="false" aria-label="LingAI">
+      <div class="chat-header">💬 LingAI — Your Smart Tutor</div>
+      <div class="chat-sub">Hello! Ask anything about English learning 🌟</div>
+
+      <div class="loading-orbs" id="chatLoader" aria-hidden="false">
+        <div></div><div></div><div></div>
+      </div>
+
+      <div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:6px">Try these:</div>
+      <div class="chat-example">“Give me 3 idioms for confidence.”</div>
+      <div class="chat-example">“Correct this: I goes to school.”</div>
+      <div class="chat-example">“Explain present perfect in one line.”</div>
+
+      <div class="chat-input-row">
+        <input id="chatInput" class="chat-input" placeholder="Type a question to LingAI..." aria-label="Chat input">
+        <button id="chatSend" class="chat-send">Send</button>
+      </div>
+    </div>
+
+    <button class="chatbot-btn" id="chatBtn" title="Open AI Tutor"><i class="fas fa-robot"></i></button>
+  </div>
+
+  <!-- SCRIPTS -->
+  <script>
+/************* UI toggles (dashboard parity) *************/
+const notifBtn = document.getElementById('notifBtn');
+const msgBtn = document.getElementById('msgBtn');
+const notifPop = document.getElementById('notifPop');
+const msgPop = document.getElementById('msgPop');
+const profilePic = document.getElementById('profilePic');
+const profileMenu = document.getElementById('profileMenu');
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsPanel = document.getElementById('settingsPanel');
+const settingsClose = document.getElementById('settingsClose');
+
+// safe toggles (guard elements may not exist in some variants)
+if (notifBtn) notifBtn.addEventListener('click', e => {
+  notifPop?.classList.toggle('show');
+  msgPop?.classList.remove('show');
+  profileMenu?.classList.remove('show');
+});
+if (msgBtn) msgBtn.addEventListener('click', e => {
+  msgPop?.classList.toggle('show');
+  notifPop?.classList.remove('show');
+  profileMenu?.classList.remove('show');
+});
+if (profilePic) profilePic.addEventListener('click', e => {
+  profileMenu?.classList.toggle('show');
+  notifPop?.classList.remove('show');
+  msgPop?.classList.remove('show');
+});
+
+// Settings panel
+if (settingsBtn) settingsBtn.addEventListener('click', ()=> settingsPanel?.classList.toggle('open'));
+if (settingsClose) settingsClose.addEventListener('click', ()=> settingsPanel?.classList.remove('open'));
+
+// Submenus (safe)
+const flashToggle = document.getElementById('flashToggle');
+const vocabToggle = document.getElementById('vocabToggle');
+if (flashToggle) flashToggle.addEventListener('click', (e) => {
+  e.preventDefault();
+  const sub = document.getElementById('flashSub');
+  if (sub) sub.classList.toggle('show');
+});
+if (vocabToggle) vocabToggle.addEventListener('click', (e) => {
+  e.preventDefault();
+  const sub = document.getElementById('vocabSub');
+  if (sub) sub.classList.toggle('show');
+});
+
+// Theme toggle (persist)
+const themeBtn = document.getElementById('themeBtn');
+if (localStorage.getItem('lingo_theme') === 'dark') document.body.classList.add('dark');
+if (themeBtn) themeBtn.addEventListener('click', () => {
+  document.body.classList.toggle('dark');
+  localStorage.setItem('lingo_theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+});
+
+// Close small popups on outside click
+document.addEventListener('click', (e) => {
+  if (notifBtn && !notifBtn.contains(e.target) && notifPop && !notifPop.contains(e.target)) notifPop.classList.remove('show');
+  if (msgBtn && !msgBtn.contains(e.target) && msgPop && !msgPop.contains(e.target)) msgPop.classList.remove('show');
+  if (profilePic && !profilePic.contains(e.target) && profileMenu && !profileMenu.contains(e.target)) profileMenu.classList.remove('show');
+});
+
+/************* Chatbot (unchanged behaviour) *************/
+const chatBtn = document.getElementById('chatBtn');
+const chatWindow = document.getElementById('chatWindow');
+const chatSend = document.getElementById('chatSend');
+const chatInput = document.getElementById('chatInput');
+const chatLoader = document.getElementById('chatLoader');
+
+if (chatBtn) chatBtn.addEventListener('click', ()=> {
+  chatWindow?.classList.toggle('show');
+  if (chatLoader) chatLoader.style.opacity = 1;
+});
+document.querySelectorAll('.chat-example').forEach(e => {
+  e.addEventListener('click', () => { if (chatInput) chatInput.value = e.textContent.replace(/[“”]/g,''); });
+});
+if (chatSend) chatSend.addEventListener('click', () => {
+  const q = (chatInput?.value || '').trim();
+  if (!q) return alert('Type a question!');
+  if (chatLoader) chatLoader.style.opacity = 1;
+  chatSend.disabled = true;
+  setTimeout(()=> {
+    if (chatLoader) chatLoader.style.opacity = 0;
+    chatSend.disabled = false;
+    alert('LingAI: Practice tip — try using this sentence: "I have been studying English for five years."');
+  }, 1100);
+});
+
+/************* Quiz Data + Logic (TOTAL TIMER only) *************/
+const questions = [
+  { text: 'Which sentence is correct?', options: ["She don't like apples.", "She doesn't like apples.", "She didn't liked apples.", "She not likes apples."], answer: 1 },
+  { text: 'Choose the synonym of "rapid".', options: ['Slow', 'Gradual', 'Swift', 'Lethargic'], answer: 2 },
+  { text: 'Fill in: "I _____ to the store yesterday."', options: ['go', 'gone', 'went', 'going'], answer: 2 },
+  { text: 'Pick the correct article: "___ apple a day keeps the doctor away."', options: ['An', 'A', 'The', 'No article'], answer: 0 },
+  { text: 'Choose the correct preposition: "She is good ___ singing."', options: ['at', 'in', 'on', 'for'], answer: 0 }
+];
+
+// DOM refs (guard for safety)
+const questionBox = document.getElementById('questionBox');
+const optionsList = document.getElementById('optionsList');
+const qIndexEl = document.getElementById('qIndex');
+const qTotalEl = document.getElementById('qTotal');
+const qCountEl = document.getElementById('qCount');
+const scoreInner = document.getElementById('scoreInner');
+const scoreRing = document.getElementById('scoreRing');
+const timeProgress = document.getElementById('timeProgress');
+const timeLabel = document.getElementById('timeLabel');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const skipBtn = document.getElementById('skipBtn');
+const summaryPanel = document.getElementById('summaryPanel');
+const finalScoreEl = document.getElementById('finalScore');
+const tryAgainBtn = document.getElementById('tryAgainBtn');
+const closeSummaryBtn = document.getElementById('closeSummaryBtn');
+
+let currentIndex = 0;
+const total = questions.length;
+const answers = new Array(total).fill(null);
+
+// ---- universal total-quiz timer (no per-question timer) ----
+// If you later pass server value, replace this constant with server-provided time in seconds
+let totalQuizTime = 150; // <--- set universal quiz time here (seconds)
+let totalRemaining = totalQuizTime;
+let totalTimerHandle = null;
+
+// set UI totals
+if (qTotalEl) qTotalEl.textContent = total;
+
+// Start total timer and update UI every second
+function startTotalTimer() {
+  // clear existing
+  if (totalTimerHandle) clearInterval(totalTimerHandle);
+  totalRemaining = totalQuizTime;
+  updateTotalTimeUI();
+  totalTimerHandle = setInterval(() => {
+    totalRemaining--;
+    updateTotalTimeUI();
+    if (totalRemaining <= 0) {
+      clearInterval(totalTimerHandle);
+      // time's up - show disappointed summary
+      showSummary(true);
+    }
+  }, 1000);
+}
+
+function updateTotalTimeUI() {
+  if (!timeProgress || !timeLabel) return;
+  const elapsed = Math.max(0, totalQuizTime - totalRemaining);
+  const pct = Math.min(100, Math.round((elapsed / totalQuizTime) * 100));
+  timeProgress.style.width = pct + '%';
+  const mm = String(Math.floor(Math.max(0, totalRemaining) / 60)).padStart(2, '0');
+  const ss = String(Math.max(0, totalRemaining) % 60).padStart(2, '0');
+  timeLabel.textContent = `${mm}:${ss}`;
+}
+
+/********** Rendering & Controls (questions) **********/
+function renderQuestion(index) {
+  const q = questions[index];
+  if (qIndexEl) qIndexEl.textContent = index + 1;
+  if (questionBox) questionBox.textContent = q.text;
+  if (!optionsList) return;
+  optionsList.innerHTML = '';
+
+  q.options.forEach((opt, i) => {
+    const div = document.createElement('div');
+    div.className = 'option';
+    div.setAttribute('role', 'button');
+    div.setAttribute('tabindex', 0);
+    div.innerHTML = `<div class="label">${String.fromCharCode(65 + i)}</div><div class="text">${opt}</div>`;
+    if (answers[index] === i) div.classList.add('selected');
+    div.addEventListener('click', () => {
+      answers[index] = i;
+      updateOptionSelection();
+      updateProgressUI();
+    });
+    div.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        answers[index] = i;
+        updateOptionSelection();
+        updateProgressUI();
+      }
+    });
+    optionsList.appendChild(div);
+  });
+
+  updateOptionSelection();
+  updateProgressUI();
+  updateButtons();
+}
+
+function updateOptionSelection() {
+  if (!optionsList) return;
+  const opts = optionsList.querySelectorAll('.option');
+  opts.forEach((el, idx) => el.classList.toggle('selected', answers[currentIndex] === idx));
+}
+
+function updateProgressUI() {
+  const answered = answers.filter(a => a !== null).length;
+  if (qCountEl) qCountEl.textContent = `${answered} / ${total}`;
+  const pct = Math.round((answered / total) * 100);
+  if (scoreInner) scoreInner.textContent = pct + '%';
+  const deg = Math.round((answered / total) * 360);
+  if (scoreRing) scoreRing.style.background = `conic-gradient(var(--lilac-1) 0deg ${deg}deg, rgba(0,0,0,0.06) ${deg}deg 360deg)`;
+}
+
+function updateButtons() {
+  if (prevBtn) prevBtn.disabled = currentIndex === 0;
+  if (nextBtn) nextBtn.textContent = (currentIndex === total - 1) ? 'Finish' : 'Next';
+}
+
+function goNext() {
+  if (currentIndex < total - 1) {
+    currentIndex++;
+    renderQuestion(currentIndex);
+  } else {
+    // finish early (user finished all questions)
+    showSummary(false);
+  }
+}
+function goPrev() {
+  if (currentIndex > 0) {
+    currentIndex--;
+    renderQuestion(currentIndex);
+  }
+}
+
+// wired controls with safety checks
+if (nextBtn) nextBtn.addEventListener('click', () => goNext());
+if (prevBtn) prevBtn.addEventListener('click', () => goPrev());
+if (skipBtn) skipBtn.addEventListener('click', () => {
+  answers[currentIndex] = null;
+  updateProgressUI();
+  goNext();
+});
+
+/********** Summary / Time Up display **********/
+function computeScore() {
+  let correct = 0;
+  for (let i = 0; i < total; i++) {
+    if (answers[i] !== null && answers[i] === questions[i].answer) correct++;
+  }
+  return correct;
+}
+
+function showSummary(isTimeUp = false) {
+  // stop total timer
+  if (totalTimerHandle) clearInterval(totalTimerHandle);
+
+  const correct = computeScore();
+  const emoji = isTimeUp ? '😞' : '🎉';
+  const title = isTimeUp ? "Time's Up!" : 'You completed the quiz';
+  const msg = isTimeUp
+    ? 'Your quiz ended automatically. Try again for a better score!'
+    : `You answered ${correct} correct out of ${total}.`;
+
+  // update UI safely
+  const summaryEmoji = document.querySelector('.summary-card div:first-child');
+  const summaryTitle = document.querySelector('.summary-card h3');
+  const summaryTextEl = document.getElementById('summaryText');
+
+  if (summaryEmoji) summaryEmoji.textContent = emoji;
+  if (summaryTitle) summaryTitle.textContent = title;
+  if (summaryTextEl) summaryTextEl.textContent = msg;
+  if (finalScoreEl) finalScoreEl.textContent = `${correct} / ${total}`;
+
+  // update ring to reflect correct percent
+  const deg = Math.round((correct / total) * 360);
+  if (scoreRing) scoreRing.style.background = `conic-gradient(var(--lilac-1) 0deg ${deg}deg, rgba(0,0,0,0.06) ${deg}deg 360deg)`;
+  if (scoreInner) scoreInner.textContent = Math.round((correct / total) * 100) + '%';
+
+  // show overlay
+  if (summaryPanel) {
+    summaryPanel.classList.add('show');
+    summaryPanel.setAttribute('aria-hidden', 'false');
+  }
+}
+
+// Try again button resets everything (and restarts total timer)
+if (tryAgainBtn) tryAgainBtn.addEventListener('click', () => {
+  answers.fill(null);
+  currentIndex = 0;
+  if (summaryPanel) {
+    summaryPanel.classList.remove('show');
+    summaryPanel.setAttribute('aria-hidden','true');
+  }
+  updateProgressUI();
+  renderQuestion(0);
+  startTotalTimer();
+});
+
+// Close summary (Continue)
+if (closeSummaryBtn) closeSummaryBtn.addEventListener('click', () => {
+  if (summaryPanel) {
+    summaryPanel.classList.remove('show');
+    summaryPanel.setAttribute('aria-hidden','true');
+  }
+});
+
+/********** Keyboard accessibility for quick option navigation **********/
+document.addEventListener('keydown', (e) => {
+  // left / right to change question; numbers/letters for options
+  if (e.key === 'ArrowRight') {
+    goNext();
+  } else if (e.key === 'ArrowLeft') {
+    goPrev();
+  } else {
+    // A/B/C/D selection (case-insensitive)
+    const k = e.key.toUpperCase();
+    if (/^[A-D]$/.test(k)) {
+      const idx = k.charCodeAt(0) - 65;
+      answers[currentIndex] = idx;
+      updateOptionSelection();
+      updateProgressUI();
+    }
+  }
+});
+
+/********** Initialization **********/
+window.addEventListener('DOMContentLoaded', () => {
+  renderQuestion(0);
+  updateProgressUI();
+  startTotalTimer();
+});
+</script>
+
+</body>
+</html>
