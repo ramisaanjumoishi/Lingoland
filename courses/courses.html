@@ -1,0 +1,103 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lingoland - Courses</title>
+    
+   
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+  
+    <link href="courses.css" rel="stylesheet">
+    
+    
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&family=Poppins:wght@500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container-fluid">
+        
+        <nav id="sidebar" class="sidebar">
+            <div class="sidebar-header">
+                <img src="../img/logo.png" alt="Lingoland Logo" class="logo">
+            </div>
+            <ul class="list-unstyled">
+                <li><a href="#"><img src="../img/icon10.png" alt="Home Icon"> Dashboard</a></li>
+                <li><a href="#"><img src="../img/icon9.png" alt="Profile Icon"> User Profile</a></li>
+                <li><a href="#"><img src="../img/icon11.png" alt="Courses Icon"> Courses</a></li>
+                <li><a href="#"><img src="../img/icon12.png" alt="Leaderboard Icon"> Leaderboard</a></li>
+                <li><a href="#"><img src="../img/icon13.png" alt="Badges Icon"> Badges</a></li>
+                <li><a href="#"><img src="../img/icon14.png" alt="Flashcards Icon"> Flashcards</a></li>
+                <li><a href="#"><img src="../img/icon15.png" alt="Forum Icon"> Forum</a></li>
+                <li><a href="#"><img src="../img/icon16.png" alt="Settings Icon"> Settings</a></li>
+                <li><a href="#"><img src="../img/icon17.png" alt="Certificate Icon"> Certificates</a></li>
+                <li><a href="#"><img src="../img/icon18.png" alt="Notifications Icon"> Notifications</a></li>
+                <li><a href="#"><img src="../img/icon19.png" alt="Contact Icon"> Contact Us</a></li>
+            </ul>
+        </nav>
+
+      
+        <div class="main-content">
+         
+            <nav class="navbar navbar-expand-lg navbar-light bg-light">
+                <a class="navbar-brand" href="#">Lingoland Courses</a>
+                <div class="profile">
+                    <img src="../img/icon9.png" alt="User" class="profile-pic">
+                    <div class="dropdown">
+                        <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
+                            User
+                        </button>
+                        <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+                            <li><a class="dropdown-item" href="#">Settings</a></li>
+                            <li><a class="dropdown-item" href="#">Logout</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </nav>
+
+            
+            <div class="search-bar">
+                <input type="text" class="form-control" id="search" placeholder="Search for courses..." />
+            </div>
+
+            
+            <div class="row courses-list">
+                <div class="col-md-4 course-card easy">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Basic English Learning</h5>
+                            <p class="card-text">Learn the basics of English language and start learning new words and how to use them.</p>
+                            <span class="difficulty-level">Difficulty: Easy</span>
+                            <a href="#" class="btn btn-primary enroll-btn">Enroll Now</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 course-card medium">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Intermediate English Practise</h5>
+                            <p class="card-text">Understand the core concepts of verbs, tenses and parts of speech and improve your skills.</p>
+                            <span class="difficulty-level">Difficulty: Medium</span>
+                            <a href="#" class="btn btn-primary enroll-btn">Enroll Now</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 course-card hard">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Advanced English Course</h5>
+                            <p class="card-text">Master the skills of and learn different sentence structures</p>
+                            <span class="difficulty-level">Difficulty: Hard</span>
+                            <a href="#" class="btn btn-primary enroll-btn">Enroll Now</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
