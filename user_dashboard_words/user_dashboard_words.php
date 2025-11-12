@@ -12,52 +12,208 @@ $password = "";
 $dbname = "lingoland_db";
 $conn = mysqli_connect($servername, $username, $password, $dbname);
 
+if (!$conn) die("Connection failed: " . mysqli_connect_error());
+
+// Fetch profile and theme
 $sql = "SELECT profile_picture FROM user WHERE user_id = ?";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
-$result = $stmt->get_result();
-if ($row = $result->fetch_assoc()) {
-    $_SESSION['profile_picture'] = $row['profile_picture'];
-}
+$res = $stmt->get_result();
+if ($row = $res->fetch_assoc()) $_SESSION['profile_picture'] = $row['profile_picture'];
 
 $sql = "SELECT theme_id FROM sets WHERE user_id = ? ORDER BY set_on DESC LIMIT 1";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
-$result = $stmt->get_result();
+$res = $stmt->get_result();
 $theme_id = 1;
-if ($row = $result->fetch_assoc()) {
-    $theme_id = $row['theme_id'];
+if ($r = $res->fetch_assoc()) $theme_id = $r['theme_id'];
+
+// ============ AJAX ACTION HANDLING ============
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    header('Content-Type: application/json');
+    $action = $_POST['action'];
+    $word_id = intval($_POST['word_id']);
+
+    // get profile_id (optional)
+    $profile_id = null;
+    $p = $conn->prepare("SELECT profile_id FROM user_profile WHERE user_id = ? LIMIT 1");
+    $p->bind_param("i", $user_id);
+    $p->execute();
+    $res = $p->get_result();
+    if ($row = $res->fetch_assoc()) $profile_id = $row['profile_id'];
+    $p->close();
+
+    if ($action === 'toggle_bookmark') {
+        $value = intval($_POST['value']);
+        if ($value === 1) {
+            // insert or ignore
+            $q = $conn->prepare("INSERT INTO saves (user_id, word_id, profile_id, saved_on) 
+                                 SELECT ?, ?, ?, NOW() FROM DUAL
+                                 WHERE NOT EXISTS (SELECT 1 FROM saves WHERE user_id=? AND word_id=?)");
+            $q->bind_param("iiiii", $user_id, $word_id, $profile_id, $user_id, $word_id);
+            $q->execute();
+            echo json_encode(['success' => true, 'bookmarked' => 1]);
+        } else {
+            $q = $conn->prepare("DELETE FROM saves WHERE user_id=? AND word_id=?");
+            $q->bind_param("ii", $user_id, $word_id);
+            $q->execute();
+            echo json_encode(['success' => true, 'bookmarked' => 0]);
+        }
+        exit();
+    }
+
+    if ($action === 'toggle_reaction') {
+    $value = intval($_POST['value']);
+    // Check if record exists in word_reaction table
+    $check = $conn->prepare("SELECT reaction FROM word_reaction WHERE user_id=? AND word_id=? LIMIT 1");
+    $check->bind_param("ii", $user_id, $word_id);
+    $check->execute();
+    $res = $check->get_result();
+
+    if ($res->num_rows > 0) {
+        // Update existing record
+        $upd = $conn->prepare("UPDATE word_reaction 
+                               SET reaction=?, reacted_on=NOW() 
+                               WHERE user_id=? AND word_id=?");
+        $upd->bind_param("iii", $value, $user_id, $word_id);
+        $upd->execute();
+    } else {
+        // Insert new reaction record
+        $ins = $conn->prepare("INSERT INTO word_reaction (user_id, profile_id, word_id, reaction, reacted_on) 
+                               VALUES (?, ?, ?, ?, NOW())");
+        $ins->bind_param("iiii", $user_id, $profile_id, $word_id, $value);
+        $ins->execute();
+    }
+
+    echo json_encode(['success' => true, 'reaction' => $value]);
+    exit();
+}
 }
 
-if (!$conn) die("Connection failed: " . mysqli_connect_error());
+// ============ FETCH WORDS ============
+$search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
+$sq = mysqli_real_escape_string($conn, $search_query);
+$sql = "SELECT * FROM word WHERE word_text LIKE '%$sq%' OR word_id LIKE '%$sq%'";
+$result = mysqli_query($conn, $sql);
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['word_id'])) {
-    $word_id = $_POST['word_id'];
-    $saved_on = date("Y-m-d H:i:s");
-    $insert_query = "INSERT INTO saves (user_id, word_id, saved_on) VALUES ('$user_id', '$word_id', '$saved_on')";
-    if (mysqli_query($conn, $insert_query)) {
-        $action_type = 'word save';
-        $action_time = date("Y-m-d H:i:s");
-        $log_query = "INSERT INTO activity_log (user_id, action_type, action_time) VALUES ('$user_id', '$action_type', '$action_time')";
-        mysqli_query($conn, $log_query);
+// ======================= RECOMMENDATION ENGINE (Rule-based + ML) =======================
+
+// Fetch user's profile
+$pstmt = $conn->prepare("SELECT profile_id, learning_goal, target_exam, proficiency_self, personality_type, learning_style FROM user_profile WHERE user_id=? LIMIT 1");
+$pstmt->bind_param("i", $user_id);
+$pstmt->execute();
+$profile = $pstmt->get_result()->fetch_assoc();
+$pstmt->close();
+
+$profile_id = $profile['profile_id'] ?? null;
+
+// Fetch interests
+$interests = [];
+if ($profile_id) {
+    $int_q = $conn->prepare("SELECT i.interest_name FROM user_interest ui JOIN interest i ON ui.interest_id=i.interest_id WHERE ui.profile_id=?");
+    $int_q->bind_param("i", $profile_id);
+    $int_q->execute();
+    $int_res = $int_q->get_result();
+    while ($r = $int_res->fetch_assoc()) $interests[] = strtolower($r['interest_name']);
+    $int_q->close();
+}
+
+// Prepare word data
+$words = [];
+$res_copy = mysqli_query($conn, $sql);
+while ($row = mysqli_fetch_assoc($res_copy)) {
+    $words[$row['word_id']] = [
+        'tags' => strtolower($row['tags'] ?? ''),
+        'popularity' => (float)($row['popularity'] ?? 0)
+    ];
+}
+
+// Rule-based scoring
+$rule_scores = [];
+foreach ($words as $wid => $w) {
+    $score = 0;
+    $tags = $w['tags'];
+
+    foreach (['learning_goal','target_exam','proficiency_self','personality_type','learning_style'] as $attr) {
+        if (!empty($profile[$attr]) && str_contains($tags, strtolower($profile[$attr]))) {
+            $score += 0.2;
+        }
+    }
+    foreach ($interests as $int) {
+        if (str_contains($tags, $int)) $score += 0.1;
+    }
+    $score += 0.3 * ($w['popularity']/100);
+    $rule_scores[$wid] = min(1, $score);
+}
+
+// Check if user has learning history
+$hist_q = $conn->prepare("SELECT COUNT(*) AS c FROM (SELECT word_id FROM saves WHERE user_id=? UNION SELECT word_id FROM word_reaction WHERE user_id=?) t");
+$hist_q->bind_param("ii", $user_id, $user_id);
+$hist_q->execute();
+$hist = $hist_q->get_result()->fetch_assoc();
+$has_history = $hist['c'] > 0;
+$hist_q->close();
+
+// ML + rule integration
+$ml_scores = [];
+if ($has_history && $profile_id) {
+    $api = "http://127.0.0.1:5002/recommend_words";
+    $payload = json_encode(['user_id'=>$user_id, 'profile_id'=>$profile_id]);
+    $opts = ['http'=>[
+        'method'=>'POST',
+        'header'=>"Content-Type: application/json",
+        'content'=>$payload,
+        'timeout'=>3
+    ]];
+    $context = stream_context_create($opts);
+    $resp = @file_get_contents($api,false,$context);
+    if ($resp) {
+        $decoded = json_decode($resp,true);
+        if (is_array($decoded)) {
+            foreach ($decoded as $wid=>$val) $ml_scores[(int)$wid] = (float)$val;
+        }
     }
 }
 
-$search_query = isset($_GET['search']) ? $_GET['search'] : '';
-$sql = "SELECT * FROM word WHERE word_text LIKE '%$search_query%' OR word_id LIKE '%$search_query%'";
-$result = mysqli_query($conn, $sql);
-if (!$result) die('Error in query execution: ' . mysqli_error($conn));
+$final_scores = [];
+foreach ($words as $wid=>$w) {
+    $r = $rule_scores[$wid] ?? 0;
+    $m = $ml_scores[$wid] ?? 0;
+    if ($has_history) $final = 0.4*$r + 0.6*$m;
+    else $final = $r;
+    $final_scores[$wid] = $final;
+}
+
+// Sort words by recommendation descending
+arsort($final_scores);
+
+// Reorder result
+$ordered_ids = array_keys($final_scores);
+
 
 $saved_words = [];
+$reactions = [];
+
+// 1️⃣ Fetch all saved/bookmarked words
 $saved_sql = "SELECT word_id FROM saves WHERE user_id = '$user_id'";
-$saved_result = mysqli_query($conn, $saved_sql);
-if ($saved_result) {
-    while ($saved_row = mysqli_fetch_assoc($saved_result)) {
-        $saved_words[] = $saved_row['word_id'];
+$saved_res = mysqli_query($conn, $saved_sql);
+if ($saved_res) {
+    while ($r = mysqli_fetch_assoc($saved_res)) {
+        $saved_words[$r['word_id']] = true;
     }
 }
+
+// 2️⃣ Fetch all reactions from word_reaction table
+$react_sql = "SELECT word_id, reaction FROM word_reaction WHERE user_id = '$user_id'";
+$react_res = mysqli_query($conn, $react_sql);
+if ($react_res) {
+    while ($r = mysqli_fetch_assoc($react_res)) {
+        $reactions[$r['word_id']] = intval($r['reaction']);
+    }
+}
+
 ?>
 <!doctype html>
 <html lang="en">
@@ -74,6 +230,8 @@ if ($saved_result) {
       --bg-light: #f6f7fb; --card-light: #ffffff; --text-light: #222;
       --bg-dark: #0f1115; --card-dark: #16171b; --text-dark: #e9eefc;
       --gradient: linear-gradient(135deg,#6a4c93,#9b59b6); --muted: #6b6b6b;
+        --active-bg: rgba(255,255,255,0.25);
+   --active-text: #ffd26f;
     }
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Poppins',sans-serif;background:var(--bg-light);color:var(--text-light);transition:background .3s,color .3s;min-height:100vh}
@@ -86,6 +244,12 @@ if ($saved_result) {
     nav.menu{display:flex;flex-direction:column;gap:6px}
     nav.menu a{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;color:#fff;text-decoration:none;transition:background .2s}
     nav.menu a:hover{background:rgba(255,255,255,0.15)}
+    .menu a.active { 
+      background:var(--active-bg);
+      color:var(--active-text);
+      font-weight:700;
+      transform:translateX(6px);
+    } 
     .sub{display:none;margin-left:18px;flex-direction:column;gap:6px}
     .sub a{font-size:14px;color:rgba(255,255,255,0.9)}
     .sub.show{display:flex;animation:fadeIn .25s ease-in-out}
@@ -329,6 +493,62 @@ tbody tr:hover {
   to { opacity: 1; transform: translateY(0); }
 }
 
+.btn-icon{background:none;border:none;cursor:pointer;font-size:18px;margin:0 4px;}
+.btn-icon.heart.active{color:#ff4b6b;}
+.btn-icon.bookmark.active{color:#ffd26f;}
+/* ---- Flashcard/Word Action Icon Buttons ---- */
+.btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 20px;
+  color: #fff; /* default white outline */
+  transition: all 0.25s ease;
+  padding: 6px 10px;
+  border-radius: 8px;
+  position: relative;
+}
+
+/* Slight hover lift and glow */
+.btn-icon:hover {
+  transform: scale(1.15);
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
+  opacity: 0.9;
+}
+
+/* Dark mode compatibility */
+body.dark .btn-icon {
+  color: #fff;
+}
+
+/* Light mode compatibility */
+body:not(.dark) .btn-icon {
+  color: #333;
+  filter: drop-shadow(0 0 1px rgba(0,0,0,0.3));
+}
+body:not(.dark) .btn-icon:hover {
+  color: #6a4c93;
+  text-shadow: 0 0 6px rgba(106, 76, 147, 0.4);
+}
+
+/* Active states */
+.btn-icon.heart.active {
+  color: #ff4b6b; /* red heart */
+  text-shadow: 0 0 10px rgba(255,75,107,0.5);
+}
+
+.btn-icon.bookmark.active {
+  color: #ffd26f; /* gold bookmark */
+  text-shadow: 0 0 10px rgba(255,210,111,0.5);
+}
+
+/* Optional subtle click pulse */
+.btn-icon:active {
+  transform: scale(0.9);
+  opacity: 0.8;
+}
+
+
   </style>
 </head>
 <body class="<?php echo $theme_id == 2 ? 'dark' : ''; ?>">
@@ -402,29 +622,35 @@ tbody tr:hover {
 
     <div class="table-responsive">
       <table>
-        <thead><tr><th>Word</th><th>Definition</th><th>Actions</th></tr></thead>
-        <tbody>
-          <?php
-          if (mysqli_num_rows($result) > 0) {
-            while ($word = mysqli_fetch_assoc($result)) {
-              $is_saved = in_array($word['word_id'], $saved_words) ? 'Saved' : 'Save';
-              echo "<tr>
-                <td>{$word['word_text']}</td>
-                <td>{$word['meaning']}</td>
-                <td>
-                  <form method='POST'>
-                    <input type='hidden' name='word_id' value='{$word['word_id']}'>
-                    <button type='submit' class='btn-save'><i class='fa fa-save'></i> $is_saved</button>
-                  </form>
-                </td>
-              </tr>";
-            }
-          } else echo "<tr><td colspan='3'>No words found!</td></tr>";
-          ?>
-        </tbody>
-      </table>
-    </div>
-  </main>
+    <thead><tr><th>Word</th><th>Definition</th><th>Actions</th></tr></thead>
+    <tbody>
+      <?php
+      if (mysqli_num_rows($result)>0) {
+        foreach ($ordered_ids as $wid) {
+          $word_q = mysqli_query($conn, "SELECT * FROM word WHERE word_id=$wid");
+          $word = mysqli_fetch_assoc($word_q);
+
+          $wid=$word['word_id'];
+          $is_saved=isset($saved_words[$wid]);
+          $reacted=isset($reactions[$wid]) && $reactions[$wid]==1;
+          echo "<tr>
+            <td>".htmlspecialchars($word['word_text'])."</td>
+            <td>".htmlspecialchars($word['meaning'])."</td>
+            <td>
+              <button class='btn-icon heart ".($reacted?'active':'')."' data-id='{$wid}' title='React'>
+                <i class='".($reacted?'fa-solid':'fa-regular')." fa-heart'></i>
+              </button>
+              <button class='btn-icon bookmark ".($is_saved?'active':'')."' data-id='{$wid}' title='Bookmark'>
+                <i class='".($is_saved?'fa-solid':'fa-regular')." fa-bookmark'></i>
+              </button>
+            </td>
+          </tr>";
+        }
+      } else echo "<tr><td colspan='3'>No words found!</td></tr>";
+      ?>
+    </tbody>
+  </table>
+</main>
 
   <!-- CHATBOT -->
 <div class="chatbot" aria-hidden="false">
@@ -524,6 +750,31 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 });
 
+async function toggleAction(id, type){
+  const el=document.querySelector(`.${type}[data-id='${id}']`);
+  const active=el.classList.contains('active');
+  const newVal=active?0:1;
+  const form=new FormData();
+  form.append('action', type==='bookmark'?'toggle_bookmark':'toggle_reaction');
+  form.append('word_id', id);
+  form.append('value', newVal);
+  const res=await fetch(location.href,{method:'POST',body:form});
+  const j=await res.json();
+  if(j.success){
+    if(newVal===1)el.classList.add('active'); else el.classList.remove('active');
+    el.innerHTML=`<i class='${type==='bookmark'?(newVal?'fa-solid fa-bookmark':'fa-regular fa-bookmark'):(newVal?'fa-solid fa-heart':'fa-regular fa-heart')}'></i>`;
+  }else alert('Action failed');
+}
+document.querySelectorAll('.btn-icon.heart').forEach(b=>b.onclick=()=>toggleAction(b.dataset.id,'heart'));
+document.querySelectorAll('.btn-icon.bookmark').forEach(b=>b.onclick=()=>toggleAction(b.dataset.id,'bookmark'));
+
+// ---------- misc: header/sidebar/settings/chat behavior (kept similar) ----------
+const vocabToggle = document.getElementById('vocabToggle');
+const vocabSub = document.getElementById('vocabSub');
+if (vocabToggle && vocabSub) {
+  vocabToggle.addEventListener('click', ()=> vocabSub.classList.toggle('show'));
+  vocabSub.classList.add('show'); // keep visible and Review active
+}
   </script>
 </body>
 </html>

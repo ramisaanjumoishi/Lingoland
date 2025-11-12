@@ -22,6 +22,8 @@
       --text-dark: #e9eefc;
       --gradient: linear-gradient(135deg, #6a4c93, #9b59b6);
       --muted: #6b6b6b;
+      --active-bg: rgba(255,255,255,0.25);
+      --active-text: #ffd26f;
     }
     *{box-sizing:border-box}
     body {
@@ -58,6 +60,12 @@
       transition:background .18s, transform .15s; font-weight:600;
     }
     nav.menu a:hover{background: rgba(255,255,255,0.08); transform: translateX(6px)}
+    nav.menu a.active {
+      background:var(--active-bg);
+      color:var(--active-text);
+      font-weight:700;
+      transform:translateX(6px);
+    } 
     .sub {display:none; margin-left:18px; flex-direction:column; gap:6px; margin-top:6px}
     .sub a{font-weight:500; font-size:14px; padding-left:18px; color:rgba(255,255,255,0.9)}
        .sub.show {
@@ -462,8 +470,8 @@ body.dark .settings-panel input:focus {
     </div>
 
     <nav class="menu" aria-label="Main menu">
-      <a href="#"><i class="fas fa-home"></i> <span>Home</span></a>
-      <a href="#"><i class="fas fa-book"></i> <span>Courses</span></a>
+      <a href="../user_dashboard/user-dashboard.html"><i class="fas fa-home"></i> <span>Home</span></a>
+      <a href="../courses/courses.php"><i class="fas fa-book"></i> <span>Courses</span></a>
       <a href="#"><i class="fas fa-pencil-alt"></i> <span>Quiz</span></a>
       <a href="#"><i class="fas fa-trophy"></i> <span>Leaderboard</span></a>
 
@@ -475,8 +483,8 @@ body.dark .settings-panel input:focus {
 
       <a href="#" id="vocabToggle"><span><i class="fas fa-language"></i> Vocabulary</span><i class="fas fa-chevron-right"></i></a>
       <div class="sub" id="vocabSub">
-        <a href="#">Study New Words</a>
-        <a href="#">Your Dictionary</a>
+        <a href="../user_dashboard_words/user_dashboard_words.php">Study New Words</a>
+        <a href="../user_dashboard_words/add_words.php">Your Dictionary</a>
       </div>
 
       <a href="#"><i class="fas fa-comments"></i> <span>Forum</span></a>
