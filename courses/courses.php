@@ -841,6 +841,108 @@ body.dark hr{
   border-top: 1px solid #cccccc65;
 }
 
+/* --- CHATBOT ENHANCED DESIGN --- */
+
+.chatbot {
+  position: fixed;
+  right: 30px;
+  bottom: 22px;
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.chatbot-btn {
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--gradient);
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.18);
+}
+
+/* CHAT WINDOW WIDER + BETTER FONT SIZE */
+.chat-window {
+  width: 480px;                      /*  ⬅ wider */
+  min-height: 420px;
+  background: linear-gradient(145deg,#24132f,#1b102c 70%);
+  color: #f4f0ff;
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 25px 50px rgba(0,0,0,0.25);
+  display: none;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all .4s ease;
+  overflow: hidden;
+  position: relative;
+}
+
+
+.chat-window.show { display:block; opacity:1; transform:translateY(0); }
+
+.chat-header {
+  font-weight:700;
+  font-size:20px;
+  margin-bottom:10px;
+}
+
+/* Example prompts smaller + clickable */
+.chat-example {
+  background: rgba(255,255,255,0.09);
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: .25s ease;
+}
+.chat-example:hover { background: rgba(255,255,255,0.16); }
+
+#chatBody {
+  height: 250px;
+  overflow-y: auto;
+  margin-top: 14px;
+  padding-right: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* user bubble */
+.msg-user {
+  align-self: flex-end;
+  background: #ffffff22;
+  padding: 10px 14px;
+  border-radius: 12px;
+  max-width: 80%;
+  font-size: 14px;
+  color: #fff;
+  backdrop-filter: blur(4px);
+}
+
+/* ai bubble */
+.msg-ai {
+  align-self: flex-start;
+  background: #b57aff25;
+  padding: 10px 14px;
+  border-radius: 12px;
+  max-width: 80%;
+  font-size: 14px;
+  color: #f7e9ff;
+  border-left: 2px solid #b57aff;
+}
+
+/* Loading dots */
+.loading-orbs div{
+  width:7px; height:7px;
+}
+
+
 </style>
 </head>
 
@@ -870,7 +972,11 @@ body.dark hr{
     <a href="#"><i class="fas fa-comments"></i> Forum</a>
     <a href="#"><i class="fas fa-award"></i> Badges</a>
      <a href="#"><i class="fas fa-certificate"></i> <span>Certificates</span></a>
-    <a href="#"><i class="fas fa-robot"></i> AI Writing Assistant</a>
+    <a id="writingToggle"><i class="fas fa-robot"></i> AI Writing Assistant<i class="fas fa-chevron-right"></i></a>
+    <div class="sub" id="writingSub">
+      <a href="../writing_evaluation/writing_evaluation.php">Evaluate Writing</a>
+      <a href="../writing_evaluation/my_writing.php">My Writings</a>
+    </div>
     <a href="../user_dashboard/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a>
   </div>
 </div>
@@ -1061,27 +1167,40 @@ body.dark hr{
 <!-- Chatbot -->
 <div class="chatbot">
   <button class="chatbot-btn" id="chatBtn"><i class="fas fa-robot"></i></button>
+
+
+
   <div class="chat-window" id="chatWindow">
     <div class="chat-header">💬 LingAI — Your Smart Tutor</div>
     <p style="font-size:13px;color:#d0b3ff;margin-bottom:8px;">Hello! Ask anything about English learning 🌟</p>
-    <div class="loading-orbs"><div></div><div></div><div></div></div>
     <div style="font-size:12px;color:#c8b9e6;margin-bottom:8px;">Try these:</div>
     <div class="chat-example">“Give me 3 idioms for confidence.”</div>
     <div class="chat-example">“Correct this: I goes to school.”</div>
     <div class="chat-example">“Explain present perfect in one line.”</div>
+    <!-- ADD THIS -->
+    <div id="chatBody"
+         style="height:220px; overflow-y:auto; margin-top:10px;
+               padding-right:6px; display:flex; flex-direction:column;">
+    </div>
     <div style="margin-top:14px;display:flex;gap:8px;">
       <input id="chatInput" placeholder="Type your question..." style="flex:1;padding:8px;border-radius:8px;border:none;background:rgba(255,255,255,0.08);color:#fff;margin-top:30px">
-      <button id="chatSend" style="padding:8px 14px;border-radius:8px;background:#b57aff;color:#fff;border:0;font-weight:600;margin-top:30px">Send</button>
+      <button  type = "button" id="chatSend" style="padding:8px 14px;border-radius:8px;background:#b57aff;color:#fff;border:0;font-weight:600;margin-top:30px">Send</button>
     </div>
   </div>
 </div>
 
 <script>
+console.log("JS Loaded ✓");
+
+document.getElementById("chatSend").setAttribute("type", "button");
+
 // Sidebar submenu toggle
 const flashToggle=document.getElementById('flashToggle');
 const vocabToggle=document.getElementById('vocabToggle');
+const writintToggle=document.getElementById('writingToggle');
 flashToggle.addEventListener('click',()=>document.getElementById('flashSub').classList.toggle('show'));
 vocabToggle.addEventListener('click',()=>document.getElementById('vocabSub').classList.toggle('show'));
+writingToggle.addEventListener('click', ()=> document.getElementById('writingSub').classList.toggle('show'));
 
 // Popup toggles
 const notifBtn=document.getElementById('notifBtn');
@@ -1105,7 +1224,60 @@ if(localStorage.getItem('darkMode')==='true')document.body.classList.add('dark')
 const chatBtn=document.getElementById('chatBtn');
 const chatWindow=document.getElementById('chatWindow');
 chatBtn.onclick=()=>chatWindow.classList.toggle('show');
-document.getElementById('chatSend').onclick=()=>{const q=document.getElementById('chatInput').value.trim();if(!q)return alert('Type something!');alert('LingAI: Keep practicing English confidently 🌸');};
+
+// Click on example → fill input + show send button
+document.querySelectorAll(".chat-example").forEach(ex => {
+  ex.addEventListener("click", () => {
+    document.getElementById("chatInput").value = ex.innerText;
+  });
+});
+
+// Hide examples when a message is sent
+function hideExamples() {
+  document.querySelectorAll(".chat-example").forEach(ex => ex.style.display = "none");
+}
+
+document.getElementById("chatSend").addEventListener("click", async function () {
+    const input = document.getElementById("chatInput");
+    const text = input.value.trim();
+    if (!text) return;
+
+    hideExamples();   // 🟣 hide prompts on first message
+
+    input.value = "";
+    let body = document.getElementById("chatBody");
+
+    body.innerHTML += `<div class="msg-user">${text}</div>`;
+    body.scrollTop = body.scrollHeight;
+
+    let loading = document.createElement("div");
+    loading.innerHTML = `<div class='loading-orbs'><div></div><div></div><div></div></div>`;
+    body.appendChild(loading);
+
+    try {
+        let res = await fetch("http://127.0.0.1:5001/ai_tutor", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                profile_id: <?php echo $profile_id; ?>,
+                lesson_id: null,
+                message: text
+            })
+        });
+
+        let data = await res.json();
+        loading.remove();
+
+        body.innerHTML += `<div class="msg-ai">${data.reply}</div>`;
+        body.scrollTop = body.scrollHeight;
+
+    } catch (err) {
+        loading.remove();
+        body.innerHTML += `<div class="msg-ai" style="color:red;">AI server error.</div>`;
+    }
+});
+
+
 
 // Animation
 window.addEventListener('load',()=>{document.querySelectorAll('.stagger').forEach((el,i)=>{setTimeout(()=>{el.classList.add('enter');},i*120);});});
@@ -1197,6 +1369,9 @@ document.querySelectorAll('.edit-btn').forEach(btn => {
     }
   });
 });
+
+document.getElementById("chatSend").type = "button";
+
 
 </script>
 
