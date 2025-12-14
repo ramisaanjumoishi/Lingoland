@@ -47,6 +47,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt = $conn->prepare($update_sql);
     $stmt->bind_param("ii", $weekly_time_minutes, $user_id);
     if ($stmt->execute()) {
+        // Add onboarding completed marker
+        $stmt2 = $conn->prepare("
+            INSERT INTO activity_log (user_id, action_type, action_time)
+            VALUES (?, 'onboarding_completed', NOW())
+        ");
+        $stmt2->bind_param("i", $user_id);
+        $stmt2->execute();
+        $stmt2->close();
+        
         // Redirect to dashboard
         header("Location: ../user_dashboard/user-dashboard.php");
         exit();

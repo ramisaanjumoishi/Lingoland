@@ -34,6 +34,52 @@ if ($stmt_p) {
     $stmt_p->close();
 }
 
+/* ---------------------------------------------------
+   HELPER FUNCTIONS
+----------------------------------------------------*/
+function log_user_activity($user_id, $action_type) {
+    $servername = "localhost";
+    $username = "root";
+    $password = "";
+    $dbname = "lingoland_db";
+
+    $conn = mysqli_connect($servername, $username, $password, $dbname);
+
+    if (!$conn) {
+        die("Connection failed: " . mysqli_connect_error());
+    }
+
+    $action_time = date("Y-m-d H:i:s");
+    $log_sql = "INSERT INTO activity_log (user_id, action_type, action_time) 
+                VALUES (?, ?, ?)";
+
+    $stmt = $conn->prepare($log_sql);
+    $stmt->bind_param("iss", $user_id, $action_type, $action_time);
+    $stmt->execute();
+    $stmt->close();
+    mysqli_close($conn);
+}
+
+/* ---------------------------
+   FETCH USER PROFILE DATA
+----------------------------*/
+$sql = "SELECT first_name, last_name, email, password, profile_picture, score 
+        FROM user WHERE user_id = ?";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$res = $stmt->get_result();
+$user = $res->fetch_assoc();
+
+$full_name = $user['first_name'] . " " . $user['last_name'];
+// Set profile picture - use img/icon9.png when no profile picture exists
+$profile_pic = '../img/icon9.png'; // Default avatar
+if (isset($user['profile_picture']) && !empty(trim($user['profile_picture']))) {
+    $profile_pic = '../settings/' . $user['profile_picture'];
+}
+
+$_SESSION['profile_picture'] = $profile_pic;
+
 // ------------------ Provide AJAX endpoints (same file) ------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     header('Content-Type: application/json; charset=utf-8');
@@ -73,6 +119,8 @@ if ($action === 'view_card' && isset($_POST['card_id'])) {
         $status = 1;
     }
     $check->close();
+    // Log user activity for viewing flashcard
+        log_user_activity($user_id, 'flashcard_reviewed');
 
     echo json_encode(['success' => true, 'word_usage' => $word_usage, 'status' => $status]);
     exit();
@@ -101,7 +149,8 @@ if ($action === 'view_card' && isset($_POST['card_id'])) {
         $ins->close();
     }
     $check->close();
-
+     // Log user activity for toggling reaction
+        log_user_activity($user_id, $value == 1 ? 'flashcard_liked' : 'flashcard_unliked');
     echo json_encode(['success' => true, 'reaction' => $value]);
     exit();
 }
@@ -124,6 +173,8 @@ if ($action === 'view_card' && isset($_POST['card_id'])) {
             }
             $ins->execute();
             $ins->close();
+             // Log user activity for bookmarking
+            log_user_activity($user_id, 'flashcard_bookmarked');
             echo json_encode(['success' => true, 'bookmarked' => 1]);
             exit();
         } else {
@@ -132,6 +183,7 @@ if ($action === 'view_card' && isset($_POST['card_id'])) {
             $del->bind_param("ii", $card_id, $user_id);
             $del->execute();
             $del->close();
+             log_user_activity($user_id, 'flashcard_unbookmarked');
             echo json_encode(['success' => true, 'bookmarked' => 0]);
             exit();
         }
@@ -280,8 +332,44 @@ $flashcards_json = json_encode($flashcards, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_
 $reactions_json = json_encode($user_reactions);
 $bookmarks_json = json_encode($user_bookmarks);
 
-// ------------------ HTML Output ------------------
-?>
+/* ---------------------------------------------------
+   FETCH NOTIFICATIONS FOR POPUP MENU
+----------------------------------------------------*/
+$notif_sql = "
+    SELECT a.notification_id, a.is_read, a.is_sent,
+           n.title, n.message
+    FROM are_sent a
+    JOIN notification n ON a.notification_id = n.notification_id
+    WHERE a.user_id = ?
+    ORDER BY a.is_sent DESC
+    LIMIT 30
+";
+
+$stmt_notif = $conn->prepare($notif_sql);
+$stmt_notif->bind_param("i", $user_id);
+$stmt_notif->execute();
+$notif_list = $stmt_notif->get_result()->fetch_all(MYSQLI_ASSOC);
+
+
+/* ---------------------------------------------------
+   MARK AS READ (AJAX)
+----------------------------------------------------*/
+if (isset($_POST['mark_read'])) {
+    $nid = (int) $_POST['mark_read'];
+
+    $update_sql = "UPDATE are_sent 
+                   SET is_read = 1 
+                   WHERE user_id = ? AND notification_id = ?";
+
+    $u_stmt = $conn->prepare($update_sql);
+    $u_stmt->bind_param("ii", $user_id, $nid);
+    $u_stmt->execute();
+
+    echo "ok";
+    exit;
+}
+
+
 
 ?>
 <!DOCTYPE html>
@@ -775,6 +863,281 @@ h1 {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-5px); }
 }
+
+/* --- CHATBOT ENHANCED DESIGN --- */
+
+.chatbot {
+  position: fixed;
+  right: 30px;
+  bottom: 22px;
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.chatbot-btn {
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--gradient);
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.18);
+}
+
+/* CHAT WINDOW WIDER + BETTER FONT SIZE */
+.chat-window {
+  width: 480px;                      /*  ⬅ wider */
+  min-height: 420px;
+  background: linear-gradient(145deg,#24132f,#1b102c 70%);
+  color: #f4f0ff;
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 25px 50px rgba(0,0,0,0.25);
+  display: none;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all .4s ease;
+  overflow: hidden;
+  position: relative;
+}
+
+
+.chat-window.show { display:block; opacity:1; transform:translateY(0); }
+
+.chat-header {
+  font-weight:700;
+  font-size:20px;
+  margin-bottom:10px;
+}
+
+/* Example prompts smaller + clickable */
+.chat-example {
+  background: rgba(255,255,255,0.09);
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: .25s ease;
+}
+.chat-example:hover { background: rgba(255,255,255,0.16); }
+
+#chatBody {
+  height: 250px;
+  overflow-y: auto;
+  margin-top: 14px;
+  padding-right: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* user bubble */
+.msg-user {
+  align-self: flex-end;
+  background: #ffffff22;
+  padding: 10px 14px;
+  border-radius: 12px;
+  max-width: 80%;
+  font-size: 14px;
+  color: #fff;
+  backdrop-filter: blur(4px);
+}
+
+/* ai bubble */
+.msg-ai {
+  align-self: flex-start;
+  background: #b57aff25;
+  padding: 10px 14px;
+  border-radius: 12px;
+  max-width: 80%;
+  font-size: 14px;
+  color: #f7e9ff;
+  border-left: 2px solid #b57aff;
+}
+
+/* Loading dots */
+.loading-orbs div{
+  width:7px; height:7px;
+}
+
+
+/* ----------------------------------------
+   NOTIFICATION POPUP DESIGN
+-------------------------------------------*/
+.notif-popup {
+    position: absolute;
+    top: 64px;
+    right: 80px;
+    width: 360px;
+    background: var(--card-light);
+    border-radius: 18px;
+    padding: 0;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.15);
+    display: none;
+    flex-direction: column;
+    max-height: 480px;
+    overflow: hidden;
+    z-index: 200;
+}
+
+body.dark .notif-popup {
+    background: var(--card-dark);
+    box-shadow: 0 12px 30px rgba(255,255,255,0.07);
+}
+
+.notif-header {
+    padding: 16px;
+    font-size: 17px;
+    font-weight: 700;
+    border-bottom: 1px solid rgba(0,0,0,0.1);
+    background-color:rgba(225, 215, 215, 0.69);
+}
+
+body.dark .notif-header {
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    background-color:rgba(43, 10, 231, 0.22);
+}
+
+.notif-body {
+    overflow-y: auto;
+    max-height: 420px;
+}
+
+.notif-item {
+    padding: 16px;
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+    cursor: pointer;
+    transition: background .2s;
+}
+
+.notif-item:hover {
+    background: rgba(0,0,0,0.04);
+}
+
+body.dark .notif-item:hover {
+    background: rgba(255,255,255,0.05);
+}
+
+.notif-item.unread {
+    background: rgba(155,89,182,0.06);
+}
+
+body.dark .notif-item.unread {
+    background: rgba(155,89,182,0.18);
+}
+
+.notif-title {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.notif-msg {
+    font-size: 13px;
+    opacity: 0.8;
+    margin-top: 4px;
+}
+
+.notif-meta {
+    text-align: right;
+    font-size: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.notif-mark {
+    color: #6a4c93;
+    font-size: 10px;
+}
+
+.notif-empty {
+    text-align: center;
+    padding: 24px;
+    opacity: .6;
+}
+
+.notif-popup {
+    position: absolute;
+    top: 65px;
+    right: 60px;
+    width: 380px;
+    background: var(--card-light);
+    border-radius: 18px;
+    box-shadow: 0 18px 40px rgba(0,0,0,0.25);
+    overflow: hidden;
+    display: none;
+    flex-direction: column;
+    max-height: 520px;
+    z-index: 2000;
+}
+
+.notif-body {
+    overflow-y: auto;
+    max-height: 460px;
+    padding: 0;
+}
+
+.notif-body::-webkit-scrollbar {
+    width: 6px;
+}
+.notif-body::-webkit-scrollbar-thumb {
+    background: #9b59b6;
+    border-radius: 10px;
+}
+
+.notif-item {
+    display: flex;
+    gap: 12px;
+    padding: 14px;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+    transition: background .2s ease;
+    cursor: pointer;
+}
+
+.notif-item:hover {
+    background: rgba(155,89,182,0.08);
+}
+
+.notif-item.unread {
+    background: rgba(155,89,182,0.12);
+}
+
+.notif-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+}
+
+.icon-1 { background: #6c5ce7; }   /* course */
+.icon-2 { background: #a55eea; }   /* lesson */
+.icon-3 { background: #00b894; }   /* message */
+.icon-4 { background: #fdcb6e; }   /* badge */
+.icon-5 { background: #e17055; }   /* leaderboard */
+
+.mark-read-btn {
+    background: transparent;
+    color: #9b59b6;
+    border: none;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 0;
+}
+.mark-read-btn:hover {
+    color: #6a4c93;
+    text-decoration: underline;
+}
+
 </style>
 </head>
 <body class="<?php echo ($theme_id == 2) ? 'dark' : ''; ?>">
@@ -787,24 +1150,26 @@ h1 {
   </div>
   <div class="menu">
     <a href="../user_dashboard/user-dashboard.php"><i class="fas fa-home"></i> Home</a>
-    <a href="../courses/courses.php"><i class="fas fa-book"></i> Courses</a>
-    <a id="flashToggle" class="active"><i class="fas fa-th-large"></i> Flashcards <i class="fas fa-chevron-right"></i></a>
-    <div class="sub show" id="flashSub">
-      <a href="../user_flashcards/user_flashcards.php" class="active">Review Flashcards</a>
+    <a href="../courses/courses.php" ><i class="fas fa-book"></i> Courses</a>
+    <a href="../leaderboard/view_leaderboard.php"><i class="fas fa-trophy"></i> Leaderboard</a>
+    <a id="flashToggle" class = "active"><i class="fas fa-th-large"></i> Flashcards <i class="fas fa-chevron-right"></i></a>
+    <div class="sub" id="flashSub">
+      <a href="../user_flashcards/user_flashcards.php"  class="active">Review</a>
       <a href="../user_flashcards/create_flashcard.php">Add New</a>
-      <a href="../user_flashcards/bookmark_flashcard.php">Bookmarked Flashcards</a>
+       <a href="../user_flashcards/bookmark_flashcard.php">Bookmarked Flashcard</a>
     </div>
     <a id="vocabToggle"><i class="fas fa-language"></i> Vocabulary <i class="fas fa-chevron-right"></i></a>
     <div class="sub" id="vocabSub">
-      <a href="../user_dashboard_words/user_dashboard_words.php">Study</a>
-      <a href="../user_dashboard_words/add_words.php">Your Dictionary</a>
+       <a href="../user_dashboard_words/user_dashboard_words.php">Study New Words</a>
+        <a href="../user_dashboard_words/add_words.php">Your Dictionary</a>
     </div>
-    <a href="#"><i class="fas fa-pencil-alt"></i> Quiz</a>
-    <a href="../leaderboard/view_leaderboard.php"><i class="fas fa-trophy"></i> Leaderboard</a>
-    <a href="#"><i class="fas fa-comments"></i> Forum</a>
-    <a href="#"><i class="fas fa-award"></i> Badges</a>
-     <a href="#"><i class="fas fa-certificate"></i> <span>Certificates</span></a>
-    <a href="#"><i class="fas fa-robot"></i> AI Writing Assistant</a>
+    <a href="../user_badge/user_badge.php"><i class="fas fa-award"></i> Badges</a>
+     <a href="../user_certificate/user_certificate.php"><i class="fas fa-certificate"></i> <span>Certificates</span></a>
+    <a id="writingToggle"><i class="fas fa-robot"></i> AI Writing Assistant<i class="fas fa-chevron-right"></i></a>
+    <div class="sub" id="writingSub">
+      <a href="../writing_evaluation/writing_evaluation.php">Evaluate Writing</a>
+      <a href="../writing_evaluation/my_writing.php">My Writings</a>
+    </div>
     <a href="../user_dashboard/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a>
   </div>
 </div>
@@ -816,36 +1181,82 @@ h1 {
     <h3>Flashcards — Review</h3>
   </div>
   <div class="right">
-    <button class="icon-btn" id="notifBtn">🔔<span class="badge" id="notifBadge"></button>
-    <button class="icon-btn" id="messageBtn">📩<span class="badge" id="msgBadge"></button>
+    <button class="icon-btn" id="notifBtn">🔔<span class="badge" id="notifBadge"></span></button>
+    <div id="notifPopup" class="notif-popup">
+    <div class="notif-header">Notifications</div>
+
+    <div class="notif-body">
+
+        <?php foreach ($notif_list as $n): ?>
+
+        <div class="notif-item <?php echo $n['is_read'] ? 'read' : 'unread'; ?>"
+             data-id="<?php echo $n['notification_id']; ?>">
+
+            <div class="notif-icon icon-<?php echo $n['notification_id']; ?>">
+                <?php
+                    $icons = [
+                        1 => "fa-graduation-cap", // course
+                        2 => "fa-book",           // lesson
+                        3 => "fa-envelope",       // message
+                        4 => "fa-award",          // badge
+                        5 => "fa-trophy",         // leaderboard
+                    ];
+                ?>
+                <i class="fas <?php echo $icons[$n['notification_id']]; ?>"></i>
+            </div>
+
+            <div class="notif-content">
+                <div class="notif-title"><?php echo htmlspecialchars($n['title']); ?></div>
+                <div class="notif-msg"><?php echo htmlspecialchars($n['message']); ?></div>
+            </div>
+
+            <div class="notif-meta">
+                <span class="notif-time">
+                    <?php echo date("M d, h:i A", strtotime($n['is_sent'])); ?>
+                </span>
+
+                <button class="mark-read-btn" 
+                        data-id="<?php echo $n['notification_id']; ?>">
+                    <?php echo $n['is_read'] ? "Seen" : "Mark"; ?>
+                </button>
+            </div>
+
+        </div>
+
+        <?php endforeach; ?>
+
+    </div>
+</div>
+
     <button class="icon-btn" id="settingsBtn"><i class="fas fa-cog"></i></button>
-    <span id="darkModeToggle" class="icon-btn">🌓</span>
-    <img src="<?php echo !empty($_SESSION['profile_picture']) ? '../settings/' . htmlspecialchars($_SESSION['profile_picture']) : 'https://i.pravatar.cc/40'; ?>" alt="Profile" style="border-radius:50%">
+    <span id="themeBtn" class="icon-btn">🌓</span>
+     <img id="profilePic" src="<?php echo $profile_pic; ?>" alt="profile" style="width:46px;height:46px;border-radius:10px;cursor:pointer;border:2px solid rgba(0,0,0,0.06)">
   </div>
 </div>
 
-<!-- SETTINGS PANEL (updated with profile editing UI) -->
+<!-- SETTINGS PANEL (right slide-in) -->
+ <!-- SETTINGS PANEL (updated with profile editing UI) -->
 <aside id="settingsPanel" class="settings-panel" aria-hidden="true">
   <button class="settings-close" id="settingsClose"><i class="fas fa-times"></i></button>
 
   <div class="settings-profile">
     <div class="profile-photo">
-      <img id="settingsProfilePic" src="https://i.pravatar.cc/120?img=12" alt="Profile Picture">
+      <img id="settingsProfilePic" src="<?php echo $profile_pic; ?>" alt="Profile Picture">
       <button id="editPhotoBtn" class="edit-photo"><i class="fas fa-pen"></i></button>
       <input type="file" id="photoInput" accept="image/*" hidden>
     </div>
-    <h3 id="userFullName">Ramisa Anjum</h3>
-    <p id="userEmail">ramisa.anjum345@gmail.com</p>
+    <h3 id="userFullName"><?php echo $full_name; ?></h3>
+    <p id="userEmail"><?php echo $user['email']; ?></p>
   </div>
 
   <div class="settings-section">
     <h4>Profile</h4>
     <div class="field-group">
-      <input type="text" id="firstName" value="Ramisa" disabled>
+      <input type="text" id="firstName" value="<?php echo $user['first_name']; ?>"disabled>
       <button class="edit-btn" data-field="firstName"><i class="fas fa-pen"></i></button>
     </div>
     <div class="field-group">
-      <input type="text" id="lastName" value="Anjum" disabled>
+      <input type="text" id="lastName" value="<?php echo $user['last_name']; ?>" disabled>
       <button class="edit-btn" data-field="lastName"><i class="fas fa-pen"></i></button>
     </div>
   </div>
@@ -853,11 +1264,11 @@ h1 {
   <div class="settings-section">
     <h4>Account</h4>
     <div class="field-group">
-      <input type="email" id="emailField" value="ramisa.anjum345@gmail.com" disabled>
+      <input type="email" id="emailField" value="<?php echo $user['email']; ?>" disabled>
       <button class="edit-btn" data-field="emailField"><i class="fas fa-pen"></i></button>
     </div>
     <div class="field-group">
-      <input type="password" id="passwordField" value="••••••" disabled>
+      <input type="password" id="passwordField" value="<?php echo $user['password']; ?>"disabled>
       <button class="edit-btn" data-field="passwordField"><i class="fas fa-pen"></i></button>
     </div>
   </div>
@@ -918,26 +1329,35 @@ h1 {
     </div>
   </div>
 </main>
-
 <!-- Chatbot -->
 <div class="chatbot">
   <button class="chatbot-btn" id="chatBtn"><i class="fas fa-robot"></i></button>
+
+
+
   <div class="chat-window" id="chatWindow">
     <div class="chat-header">💬 LingAI — Your Smart Tutor</div>
     <p style="font-size:13px;color:#d0b3ff;margin-bottom:8px;">Hello! Ask anything about English learning 🌟</p>
-    <div class="loading-orbs"><div></div><div></div><div></div></div>
     <div style="font-size:12px;color:#c8b9e6;margin-bottom:8px;">Try these:</div>
     <div class="chat-example">“Give me 3 idioms for confidence.”</div>
     <div class="chat-example">“Correct this: I goes to school.”</div>
     <div class="chat-example">“Explain present perfect in one line.”</div>
+    <!-- ADD THIS -->
+    <div id="chatBody"
+         style="height:220px; overflow-y:auto; margin-top:10px;
+               padding-right:6px; display:flex; flex-direction:column;">
+    </div>
     <div style="margin-top:14px;display:flex;gap:8px;">
       <input id="chatInput" placeholder="Type your question..." style="flex:1;padding:8px;border-radius:8px;border:none;background:rgba(255,255,255,0.08);color:#fff;margin-top:30px">
-      <button id="chatSend" style="padding:8px 14px;border-radius:8px;background:#b57aff;color:#fff;border:0;font-weight:600;margin-top:30px">Send</button>
+      <button  type = "button" id="chatSend" style="padding:8px 14px;border-radius:8px;background:#b57aff;color:#fff;border:0;font-weight:600;margin-top:30px">Send</button>
     </div>
   </div>
 </div>
 
 <script>
+  console.log("JS Loaded ✓");
+
+document.getElementById("chatSend").setAttribute("type", "button");
 // ---------- initial data from PHP ----------
 const flashcards = <?php echo $flashcards_json ?: '[]'; ?>;
 const userReactions = <?php echo $reactions_json ?: '{}'; ?>;
@@ -1131,6 +1551,9 @@ if (sidebarToggle) sidebarToggle.addEventListener('click', ()=> document.body.cl
 const vocabToggle=document.getElementById('vocabToggle');
 vocabToggle.addEventListener('click',()=>document.getElementById('vocabSub').classList.toggle('show'));
 
+const writintToggle=document.getElementById('writingToggle');
+writingToggle.addEventListener('click', ()=> document.getElementById('writingSub').classList.toggle('show'));
+
 // settings panel
 const settingsBtn = document.getElementById('settingsBtn');
 const settingsPanel = document.getElementById('settingsPanel');
@@ -1138,28 +1561,316 @@ const settingsClose = document.getElementById('settingsClose');
 if (settingsBtn) settingsBtn.addEventListener('click', ()=> settingsPanel.classList.add('open'));
 if (settingsClose) settingsClose.addEventListener('click', ()=> settingsPanel.classList.remove('open'));
 
-// notif/msg toggles simple
-const notifBtn = document.getElementById('notifBtn');
-const messageBtn = document.getElementById('messageBtn');
-notifBtn && notifBtn.addEventListener('click', ()=> alert('Notifications panel (placeholder)'));
-messageBtn && messageBtn.addEventListener('click', ()=> alert('Messages panel (placeholder)'));
+// Popup toggles
+const notifBtn=document.getElementById('notifBtn');
 
-// dark mode persistence
-const darkToggle = document.getElementById('darkModeToggle');
-darkToggle && darkToggle.addEventListener('click', ()=>{
-  document.body.classList.toggle('dark');
-  localStorage.setItem('darkMode', document.body.classList.contains('dark') ? '1' : '0');
-});
-if (localStorage.getItem('darkMode') === '1') document.body.classList.add('dark');
+notifBtn.onclick=()=>{document.getElementById('notifPop').style.display=document.getElementById('notifPop').style.display==='block'?'none':'block';document.getElementById('msgPop').style.display='none';};
+
+
+  // --------- THEME ----------
+    const themeBtn=document.getElementById('themeBtn');
+
+// Function to save theme to database
+async function saveThemeToDatabase(themeId) {
+    try {
+        console.log('Saving theme - Theme ID:', themeId, 'User ID:', <?php echo $user_id; ?>);
+        
+        const formData = new FormData();
+        formData.append('theme_id', themeId);
+        formData.append('user_id', <?php echo $user_id; ?>);
+
+        // Log what's being sent
+        for (let [key, value] of formData.entries()) {
+            console.log('FormData:', key, value);
+        }
+
+        const response = await fetch('../user_dashboard/update_theme.php', {
+            method: 'POST',
+            body: formData
+        });
+
+        console.log('Response status:', response.status);
+        const result = await response.json();
+        console.log('Server response:', result);
+        
+        if (!result.success) {
+            console.error('Failed to save theme:', result.message);
+        } else {
+            console.log('Theme saved successfully!');
+        }
+    } catch (error) {
+        console.error('Error saving theme:', error);
+    }
+}
+
+// Initialize theme from localStorage or default to light
+const currentTheme = localStorage.getItem('lingo_theme') || 'light';
+if (currentTheme === 'dark') {
+    document.body.classList.add('dark');
+}
+
+// Theme button click handler
+themeBtn.onclick = async () => {
+    const isDark = document.body.classList.toggle('dark');
+    const theme = isDark ? 'dark' : 'light';
+    const themeId = isDark ? 2 : 1;
+    
+    // Save to localStorage
+    localStorage.setItem('lingo_theme', theme);
+    
+    // Save to database
+    await saveThemeToDatabase(themeId);
+    
+    // Show notification
+    showNotification(`Theme changed to ${theme} mode`);
+};
 
 // Chatbot
 const chatBtn=document.getElementById('chatBtn');
 const chatWindow=document.getElementById('chatWindow');
 chatBtn.onclick=()=>chatWindow.classList.toggle('show');
-document.getElementById('chatSend').onclick=()=>{const q=document.getElementById('chatInput').value.trim();if(!q)return alert('Type something!');alert('LingAI: Keep practicing English confidently 🌸');};
+
+// Click on example → fill input + show send button
+document.querySelectorAll(".chat-example").forEach(ex => {
+  ex.addEventListener("click", () => {
+    document.getElementById("chatInput").value = ex.innerText;
+  });
+});
+
+// Hide examples when a message is sent
+function hideExamples() {
+  document.querySelectorAll(".chat-example").forEach(ex => ex.style.display = "none");
+}
+
+document.getElementById("chatSend").addEventListener("click", async function () {
+    const input = document.getElementById("chatInput");
+    const text = input.value.trim();
+    if (!text) return;
+
+    hideExamples();   // 🟣 hide prompts on first message
+
+    input.value = "";
+    let body = document.getElementById("chatBody");
+
+    body.innerHTML += `<div class="msg-user">${text}</div>`;
+    body.scrollTop = body.scrollHeight;
+
+    let loading = document.createElement("div");
+    loading.innerHTML = `<div class='loading-orbs'><div></div><div></div><div></div></div>`;
+    body.appendChild(loading);
+
+    try {
+        let res = await fetch("http://127.0.0.1:5001/ai_tutor", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                profile_id: <?php echo $profile_id; ?>,
+                lesson_id: null,
+                message: text
+            })
+        });
+
+        let data = await res.json();
+        loading.remove();
+
+        body.innerHTML += `<div class="msg-ai">${data.reply}</div>`;
+        body.scrollTop = body.scrollHeight;
+
+    } catch (err) {
+        loading.remove();
+        body.innerHTML += `<div class="msg-ai" style="color:red;">AI server error.</div>`;
+    }
+});
 
 // Animation
 window.addEventListener('load',()=>{document.querySelectorAll('.stagger').forEach((el,i)=>{setTimeout(()=>{el.classList.add('enter');},i*120);});});
+
+// -------- SETTINGS PANEL BEHAVIOR --------
+
+// profile photo upload
+const editPhotoBtn = document.getElementById('editPhotoBtn');
+const photoInput = document.getElementById('photoInput');
+const profileImg = document.getElementById('settingsProfilePic');
+editPhotoBtn.addEventListener('click', () => photoInput.click());
+// Profile photo upload with database saving
+photoInput.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  // Validate file type
+  if (!file.type.startsWith('image/')) {
+    alert('Please select an image file');
+    return;
+  }
+
+  // Validate file size (max 2MB)
+  if (file.size > 2 * 1024 * 1024) {
+    alert('Image size should be less than 2MB');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('profile_picture', file);
+  formData.append('user_id', <?php echo $user_id; ?>);
+
+  try {
+    const response = await fetch('update_profile_picture.php', {
+      method: 'POST',
+      body: formData
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      profileImg.src = result.new_image_url;
+      showNotification('Profile picture updated successfully!');
+      
+      // Update header profile picture too
+      const headerProfilePic = document.getElementById('profilePic');
+      if (headerProfilePic) {
+        headerProfilePic.src = result.new_image_url;
+      }
+    } else {
+      alert('Error updating profile picture: ' + result.message);
+    }
+  } catch (error) {
+    alert('Error uploading image: ' + error.message);
+  }
+});
+
+// Editable fields toggle with database saving
+document.querySelectorAll('.edit-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const fieldId = btn.getAttribute('data-field');
+    const field = document.getElementById(fieldId);
+    const icon = btn.querySelector('i');
+
+    if (field.disabled) {
+      // Enable editing mode
+      field.disabled = false;
+      field.focus();
+      icon.classList.replace('fa-pen', 'fa-save');
+      field.style.borderBottom = '2px solid var(--lilac-2)';
+    } else {
+      // Save mode - send data to server
+      field.disabled = true;
+      icon.classList.replace('fa-save', 'fa-pen');
+      field.style.borderBottom = 'none';
+      
+      try {
+        await saveFieldToDatabase(fieldId, field.value);
+        showNotification(`Successfully updated ${getFieldName(fieldId)}!`);
+        
+        // Update the displayed name if first/last name changed
+        if (fieldId === 'firstName' || fieldId === 'lastName') {
+          updateDisplayName();
+        }
+      } catch (error) {
+        alert(`Error saving ${getFieldName(fieldId)}: ${error.message}`);
+        // Revert icon if save fails
+        icon.classList.replace('fa-pen', 'fa-save');
+        field.disabled = false;
+      }
+    }
+  });
+});
+
+// Function to get field name for display
+function getFieldName(fieldId) {
+  const fieldNames = {
+    'firstName': 'First Name',
+    'lastName': 'Last Name', 
+    'emailField': 'Email',
+    'passwordField': 'Password'
+  };
+  return fieldNames[fieldId] || fieldId;
+}
+
+// Function to update displayed name in settings panel
+function updateDisplayName() {
+  const firstName = document.getElementById('firstName').value;
+  const lastName = document.getElementById('lastName').value;
+  const fullNameElement = document.getElementById('userFullName');
+  
+  if (fullNameElement) {
+    fullNameElement.textContent = `${firstName} ${lastName}`;
+  }
+}
+
+// Function to save field data to database
+async function saveFieldToDatabase(fieldName, fieldValue) {
+  const formData = new FormData();
+  formData.append('field', fieldName);
+  formData.append('value', fieldValue);
+  formData.append('user_id', <?php echo $user_id; ?>);
+
+  const response = await fetch('update_profile.php', {
+    method: 'POST',
+    body: formData
+  });
+
+  if (!response.ok) {
+    throw new Error('Network response was not ok');
+  }
+
+  const result = await response.json();
+  
+  if (!result.success) {
+    throw new Error(result.message || 'Failed to update profile');
+  }
+  
+  return result;
+}
+
+// Function to show notification
+function showNotification(message) {
+  // Create a temporary notification
+  const notification = document.createElement('div');
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: var(--lilac-1);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 1000;
+    font-weight: 500;
+  `;
+  notification.textContent = message;
+  
+  document.body.appendChild(notification);
+  
+  // Remove after 3 seconds
+  setTimeout(() => {
+    notification.remove();
+  }, 3000);
+}
+
+// Toggle popup
+document.getElementById("notifBtn").addEventListener("click", () => {
+    let p = document.getElementById("notifPopup");
+    p.style.display = p.style.display === "flex" ? "none" : "flex";
+});
+
+// Mark as read
+$(document).on("click", ".mark-read-btn", function (e) {
+    e.stopPropagation();
+
+    let nid = $(this).data("id");
+    let item = $(this).closest(".notif-item");
+    let btn = $(this);
+
+   $.post("", { mark_read: nid }, function (res) {
+    if (res.trim() === "ok") {
+        item.removeClass("unread").addClass("read");
+        btn.text("Seen");
+        btn.prop("disabled", true).css("opacity","0.6");
+    }
+});
+
+});
 
 </script>
 

@@ -174,7 +174,7 @@ $revision_id = $stmt2->insert_id;
 $stmt2->close();
 
 // UPDATE writing_feedback with new scores
-$stmt3 = $conn->prepare("UPDATE writing_feedback SET overall_score = ?, grammar_score = ?, coherence_score = ?, vocabulary_score = ?, ai_feedback_summary = ?, suggestion_json = ?, reviewed = reviewed + 1 WHERE feedback_id = ?");
+$stmt3 = $conn->prepare("UPDATE writing_feedback SET submission_text = ?, overall_score = ?, grammar_score = ?, coherence_score = ?, vocabulary_score = ?, ai_feedback_summary = ?, suggestion_json = ?, reviewed = reviewed + 1 WHERE feedback_id = ?");
 if (!$stmt3) {
     echo json_encode(["error" => "Failed to prepare update statement: " . $conn->error]);
     $conn->close();
@@ -182,7 +182,17 @@ if (!$stmt3) {
 }
 
 $suggestion_json = json_encode($suggestions);
-$stmt3->bind_param("iiissi", $overall_score, $grammar_score, $coherence_score, $vocabulary_score, $feedback_summary, $suggestion_json, $feedback_id);
+$stmt3->bind_param(
+    "siiisssi",
+    $new_text,          // NEW: update submission text
+    $overall_score,
+    $grammar_score,
+    $coherence_score,
+    $vocabulary_score,
+    $feedback_summary,
+    $suggestion_json,
+    $feedback_id
+);
 
 if (!$stmt3->execute()) {
     echo json_encode(["error" => "Failed to update feedback: " . $stmt3->error]);

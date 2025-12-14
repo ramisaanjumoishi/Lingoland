@@ -5,21 +5,21 @@ session_start();
 
 if (!isset($_SESSION['user_id'])) {
     http_response_code(401);
-    echo json_encode(['error' => 'Not authenticated']);
+    echo json_encode(['success' => false, 'message' => 'Not authenticated']);
     exit;
 }
 
 // Only accept POST JSON
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
-    echo json_encode(['error' => 'Only POST allowed']);
+    echo json_encode(['success' => false, 'message' => 'Only POST allowed']);
     exit;
 }
 
 $input = json_decode(file_get_contents('php://input'), true);
 if (!$input) {
     http_response_code(400);
-    echo json_encode(['error' => 'Invalid JSON']);
+    echo json_encode(['success' => false, 'message' => 'Invalid JSON']);
     exit;
 }
 
@@ -29,7 +29,7 @@ $ai_result = isset($input['ai_result']) ? $input['ai_result'] : null;
 
 if (!$ai_result || !is_array($ai_result)) {
     http_response_code(400);
-    echo json_encode(['error' => 'Missing ai_result']);
+    echo json_encode(['success' => false, 'message' => 'Missing ai_result']);
     exit;
 }
 
@@ -42,7 +42,7 @@ $dbname = "lingoland_db";
 $conn = mysqli_connect($servername, $username, $password, $dbname);
 if (!$conn) {
     http_response_code(500);
-    echo json_encode(['error' => 'DB connect failed: '.mysqli_connect_error()]);
+    echo json_encode(['success' => false, 'message' => 'DB connect failed: '.mysqli_connect_error()]);
     exit;
 }
 
@@ -55,22 +55,39 @@ $overall = isset($ai_result['overall_score']) ? intval($ai_result['overall_score
 $summary = isset($ai_result['ai_feedback_summary']) ? $ai_result['ai_feedback_summary'] : '';
 $suggestions = isset($ai_result['suggestions']) ? $ai_result['suggestions'] : [];
 
+$writing_prompt = $input['writing_prompt'] ?? null;
+$difficulty = $input['difficulty_level'] ?? null;
+$metadata = isset($input['prompt_metadata']) ? json_encode($input['prompt_metadata'], JSON_UNESCAPED_UNICODE) : null;
+
 if (!is_array($suggestions)) $suggestions = [];
 
-// 1) Insert into writing_feedback (FIXED)
+// Initialize variables
 $feedback_id = null;
-$stmt = $conn->prepare("INSERT INTO writing_feedback (profile_id, submission_text, grammar_score, coherence_score, vocabulary_score, overall_score, ai_feedback_summary, suggestion_json, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+$log_id = null;
+$revision_id = null; // Initialize to prevent undefined variable error
+
+// 1) Insert into writing_feedback
+$stmt = $conn->prepare("INSERT INTO writing_feedback (profile_id, submission_text, grammar_score, coherence_score, vocabulary_score, overall_score, ai_feedback_summary, suggestion_json, writing_prompt, difficulty_level, prompt_metadata_json, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
 if ($stmt) {
     $sug_json = json_encode($suggestions, JSON_UNESCAPED_UNICODE);
-    $stmt->bind_param("isiiiiss", $profile_id, $text, $grammar, $coherence, $vocab, $overall, $summary, $sug_json);
+    $stmt->bind_param("isiiiisssss", $profile_id, $text, $grammar, $coherence, $vocab, $overall, $summary, $sug_json, $writing_prompt, $difficulty, $metadata);
     if ($stmt->execute()) {
         $feedback_id = $stmt->insert_id;
+    } else {
+        $stmt->close();
+        mysqli_close($conn);
+        echo json_encode(['success' => false, 'message' => 'Failed to save feedback: ' . $stmt->error]);
+        exit;
     }
     $stmt->close();
+} else {
+    mysqli_close($conn);
+    echo json_encode(['success' => false, 'message' => 'Failed to prepare statement: ' . $conn->error]);
+    exit;
 }
 
-// 2) Insert raw log into writing_feedback_log (FIXED)
-$log_id = null;
+// 2) Insert raw log into writing_feedback_log (optional - comment out if table doesn't exist)
+/*
 $stmt2 = $conn->prepare("INSERT INTO writing_feedback_log (feedback_id, ai_model, prompt_sent, ai_response, created_at) VALUES (?, ?, ?, ?, NOW())");
 if ($stmt2) {
     $ai_response_str = json_encode($ai_result, JSON_UNESCAPED_UNICODE);
@@ -81,42 +98,14 @@ if ($stmt2) {
     }
     $stmt2->close();
 }
+*/
 
-// 4) Handle revision saving when improve button is used
-if (isset($input['action']) && $input['action'] === 'save_revision' && isset($input['original_text']) && isset($input['revised_text'])) {
-    $original_text = $input['original_text'];
-    $revised_text = $input['revised_text'];
-    
-    // Get the latest feedback_id for this profile
-    $stmt4 = $conn->prepare("SELECT feedback_id FROM writing_feedback WHERE profile_id = ? ORDER BY submitted_at DESC LIMIT 1");
-    if ($stmt4) {
-        $stmt4->bind_param("i", $profile_id);
-        $stmt4->execute();
-        $result = $stmt4->get_result();
-        if ($row = $result->fetch_assoc()) {
-            $latest_feedback_id = $row['feedback_id'];
-            
-            // Insert into writing_revision
-            $stmt5 = $conn->prepare("INSERT INTO writing_revision (feedback_id, old_text, new_text, improvement_score, revised_at) VALUES (?, ?, ?, ?, NOW())");
-            if ($stmt5) {
-                // Calculate improvement score (you can enhance this logic)
-                $improvement_score = 0; // Default for now
-                $stmt5->bind_param("issi", $latest_feedback_id, $original_text, $revised_text, $improvement_score);
-                if ($stmt5->execute()) {
-                    $revision_id = $stmt5->insert_id;
-                    // Add revision_id to response
-                    $response['revision_id'] = $revision_id;
-                }
-                $stmt5->close();
-            }
-        }
-        $stmt4->close();
-    }
-}
 mysqli_close($conn);
 
+// Return response in the format JavaScript expects
 echo json_encode([
-    'ok' => true,
+    'success' => true, // Changed from 'ok' to 'success'
+    'message' => 'Evaluation saved successfully',
     'feedback_id' => $feedback_id,
     'log_id' => $log_id,
     'revision_id' => $revision_id

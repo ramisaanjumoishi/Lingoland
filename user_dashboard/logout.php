@@ -17,7 +17,7 @@ if (isset($_SESSION['user_id'])) {
 
 
 
-header("Location: ../home/home.html");
+header("Location: ../login_signup/login_signup.html");
 exit();
 
 function log_user_activity($user_id, $action_type) {

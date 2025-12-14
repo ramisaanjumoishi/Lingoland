@@ -148,6 +148,143 @@ def evaluate_writing():
             "suggestions": ["Please try again later"]
         }), 500
 
+@app.route("/generate_prompt", methods=["POST"])
+def generate_prompt():
+    try:
+        data = request.get_json()
+        profile = data.get("profile", {})
+
+        age = profile.get("age_group", "adult")
+        exam = profile.get("target_exam", "general")
+        proficiency = profile.get("proficiency_self", "intermediate")
+        learning_style = profile.get("learning_style", "visual")
+        interests = ", ".join(profile.get("interests", []))
+
+        prompt = f"""
+You are an AI that creates personalized English writing tasks.
+
+Use the following user profile to generate a writing task:
+
+Age group: {age}
+Target exam: {exam}
+Proficiency: {proficiency}
+Learning style: {learning_style}
+Interests: {interests}
+
+Rules:
+- Return ONLY JSON.
+- Never write explanations.
+- Follow this exact JSON structure:
+
+{{
+  "writing_prompt": "<generated prompt>",
+  "difficulty_level": "<easy|intermediate|advanced>"
+}}
+"""
+
+        r = requests.post(
+            "http://localhost:11434/api/generate",
+            json={
+                "model": "phi3:mini",
+                "prompt": prompt,
+                "stream": False
+            },
+            timeout=600
+        )
+
+        raw = r.json().get("response", "")
+        cleaned = extract_json_from_text(raw)
+        return jsonify(json.loads(cleaned))
+
+    except Exception as e:
+        print("❌ Error generating prompt:", e)
+        return jsonify({
+            "writing_prompt": "Write a short paragraph about your favorite hobby.",
+            "difficulty_level": "easy"
+        })
+
+@app.route("/engagement_message_api", methods=["GET", "POST"])
+def engagement_message_api():
+    """
+    Generate a short motivational / challenge message
+    used by ../user_dashboard/update_engagement_logs.php
+    """
+
+    try:
+        # GET / POST flexible
+        if request.method == "POST":
+            data = request.get_json() or {}
+            prompt_text = data.get("prompt", "")
+        else:
+            prompt_text = request.args.get("prompt", "")
+
+        if not prompt_text.strip():
+            return jsonify({"error": "No prompt provided"}), 400
+
+        print("🔥 Engagement Message Request Received")
+        print("Prompt:", prompt_text[:150])
+
+        # Prepare model prompt
+        full_prompt = f"""
+You are an AI that generates very short motivational or challenge messages
+ONLY about the following learning activities:
+
+- Courses
+- Lessons
+- Quizzes
+- Flashcards
+- Vocabulary (words)
+- Writing practice and writing improvement
+
+STRICT RULES:
+- The message MUST relate 100% to the items listed above.
+- NOTHING else is allowed. Do NOT talk about hobbies, life, fitness, mindset,
+  emotions, mental health, personal life, meditation, family, productivity,
+  money, discipline, motivation in general, or anything unrelated to this platform.
+- No emojis.
+- 1–2 short sentences only.
+- Tone: supportive, specific, actionable.
+
+Examples of VALID messages:
+- "You're progressing well in lessons. Try completing one more to strengthen your basics."
+- "Review your last quiz mistakes to improve your score next time."
+- "Your vocabulary list is growing — practice five more words today."
+- "Flashcards are a great habit. Try a quick review session."
+- "Your writing is improving. Add 2–3 more sentences to practice coherence."
+
+Examples of FORBIDDEN content:
+- Anything about lifestyle, health, fitness, meditation, productivity,
+  emotional support, or unrelated personal advice.
+
+User activity data:
+{prompt_text}
+"""
+
+        # Call Ollama
+        r = requests.post(
+            "http://localhost:11434/api/generate",
+            json={
+                "model": "phi3:mini",
+                "prompt": full_prompt,
+                "stream": False
+            },
+            timeout=30
+        )
+
+        r.raise_for_status()
+        raw = r.json().get("response", "").strip()
+
+        print("AI Output:", raw)
+
+        # Return plain text (not JSON)
+        return raw, 200
+
+    except Exception as e:
+        print("Engagement AI Error:", e)
+        traceback.print_exc()
+        return "Stay consistent! Even a few minutes a day helps you improve.", 200
+
+
 @app.route("/health", methods=["GET"])
 def health_check():
     """Health check endpoint"""

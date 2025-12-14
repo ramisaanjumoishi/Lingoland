@@ -17,15 +17,26 @@ if (!$conn) {
     die("Connection failed: " . mysqli_connect_error());
 }
 
-// Get profile picture
-$sql = "SELECT profile_picture FROM user WHERE user_id = ?";
+/* ---------------------------
+   FETCH USER PROFILE DATA
+----------------------------*/
+$sql = "SELECT first_name, last_name, email, password, profile_picture, score 
+        FROM user WHERE user_id = ?";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
-$result = $stmt->get_result();
-if ($row = $result->fetch_assoc()) {
-    $_SESSION['profile_picture'] = $row['profile_picture'];
+$res = $stmt->get_result();
+$user = $res->fetch_assoc();
+
+$full_name = $user['first_name'] . " " . $user['last_name'];
+// Set profile picture - use img/icon9.png when no profile picture exists
+$profile_pic = '../img/icon9.png'; // Default avatar
+if (isset($user['profile_picture']) && !empty(trim($user['profile_picture']))) {
+    $profile_pic = '../settings/' . $user['profile_picture'];
 }
+
+$_SESSION['profile_picture'] = $profile_pic;
+
 
 // Get theme
 $sql = "SELECT theme_id FROM sets WHERE user_id = ? ORDER BY set_on DESC LIMIT 1";
@@ -39,22 +50,123 @@ if ($row = $result->fetch_assoc()) {
 }
 
 // ----------------- FETCH USER PROFILE DATA -----------------
-$sql = "SELECT * FROM user_profile WHERE user_id = ?";
-$stmt = $conn->prepare($sql);
-$stmt->bind_param("i", $user_id);
-$stmt->execute();
-$profile = $stmt->get_result()->fetch_assoc();
-
 $profile_id = null;
-$sql_profile = "SELECT profile_id FROM user_profile WHERE user_id = ?";
-$stmt_p = $conn->prepare($sql_profile);
-$stmt_p->bind_param("i", $user_id);
-$stmt_p->execute();
-$res_p = $stmt_p->get_result();
-if ($row_p = $res_p->fetch_assoc()) $profile_id = $row_p['profile_id'];
+$age_group = "adult";
+$target_exam = "general";
+$proficiency = "intermediate";
+$learning_style = "visual";
+$interests_array = ["general"];
+
+// 1. Get user profile data
+$sql_profile = "SELECT profile_id, age_group, target_exam, proficiency_self, learning_style FROM user_profile WHERE user_id = ?";
+$stmt_profile = $conn->prepare($sql_profile);
+
+if ($stmt_profile) {
+    $stmt_profile->bind_param("i", $user_id);
+    $stmt_profile->execute();
+    $profile_result = $stmt_profile->get_result();
+    
+    if ($profile_row = $profile_result->fetch_assoc()) {
+        $profile_id = $profile_row['profile_id'] ?? null;
+        $age_group = $profile_row['age_group'] ?? "adult";
+        $target_exam = $profile_row['target_exam'] ?? "general";
+        $proficiency = $profile_row['proficiency_self'] ?? "intermediate";
+        $learning_style = $profile_row['learning_style'] ?? "visual";
+    }
+    $stmt_profile->close();
+}
+
+// 2. Get user interests
+$sql_interests = "
+    SELECT i.interest_name 
+    FROM user_interest ui
+    JOIN interest i ON ui.interest_id = i.interest_id
+    WHERE ui.user_id = ?
+";
+$stmt_interests = $conn->prepare($sql_interests);
+
+if ($stmt_interests) {
+    $stmt_interests->bind_param("i", $user_id);
+    $stmt_interests->execute();
+    $interests_result = $stmt_interests->get_result();
+    
+    $interests_array = [];
+    while ($interest_row = $interests_result->fetch_assoc()) {
+        $interests_array[] = $interest_row['interest_name'];
+    }
+    
+    // If no interests found, use default
+    if (empty($interests_array)) {
+        $interests_array = ["general"];
+    }
+    
+    $stmt_interests->close();
+}
+
+/* ---------------------------------------------------
+   FETCH NOTIFICATIONS FOR POPUP MENU
+----------------------------------------------------*/
+$notif_sql = "
+    SELECT a.notification_id, a.is_read, a.is_sent,
+           n.title, n.message
+    FROM are_sent a
+    JOIN notification n ON a.notification_id = n.notification_id
+    WHERE a.user_id = ?
+    ORDER BY a.is_sent DESC
+    LIMIT 30
+";
+
+$stmt_notif = $conn->prepare($notif_sql);
+$stmt_notif->bind_param("i", $user_id);
+$stmt_notif->execute();
+$notif_list = $stmt_notif->get_result()->fetch_all(MYSQLI_ASSOC);
+
+
+/* ---------------------------------------------------
+   MARK AS READ (AJAX)
+----------------------------------------------------*/
+if (isset($_POST['mark_read'])) {
+    $nid = (int) $_POST['mark_read'];
+
+    $update_sql = "UPDATE are_sent 
+                   SET is_read = 1 
+                   WHERE user_id = ? AND notification_id = ?";
+
+    $u_stmt = $conn->prepare($update_sql);
+    $u_stmt->bind_param("ii", $user_id, $nid);
+    $u_stmt->execute();
+
+    echo "ok";
+    exit;
+}
+/* ---------------------------------------------------
+   HELPER FUNCTIONS
+----------------------------------------------------*/
+function log_user_activity($user_id, $action_type) {
+    $servername = "localhost";
+    $username = "root";
+    $password = "";
+    $dbname = "lingoland_db";
+
+    $conn = mysqli_connect($servername, $username, $password, $dbname);
+
+    if (!$conn) {
+        die("Connection failed: " . mysqli_connect_error());
+    }
+
+    $action_time = date("Y-m-d H:i:s");
+    $log_sql = "INSERT INTO activity_log (user_id, action_type, action_time) 
+                VALUES (?, ?, ?)";
+
+    $stmt = $conn->prepare($log_sql);
+    $stmt->bind_param("iss", $user_id, $action_type, $action_time);
+    $stmt->execute();
+    $stmt->close();
+    mysqli_close($conn);
+}
+// Log user activity - ADD THIS LINE
+log_user_activity($user_id, 'writing evaluated');
 ?>
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -114,7 +226,9 @@ body.dark { background: var(--bg-dark); color: var(--text-dark); }
       color:var(--active-text);
       font-weight:700;
       transform:translateX(6px);
-    } 
+    }
+    
+.menu .sub a.active{font-weight:500; font-size:14px; padding-left:18px; color:rgba(255,255,255,0.9); background:var(--active-bg);}
 .menu .sub {display:none; margin-left:18px; flex-direction:column; gap:6px; margin-top:6px}
 .menu .sub a{font-weight:500; font-size:14px; padding-left:18px; color:rgba(255,255,255,0.9)}
 .sub.show { display:flex; animation:fade .28s ease; }
@@ -690,6 +804,245 @@ body:not(.dark) .issue:hover {
     transform: translateY(0);
 }
 
+/* --- Writing Prompt Box --- */
+.we-prompt {
+    background: linear-gradient(135deg, #f8f3ff, #f3eaff);
+    border-left: 5px solid #9b6bff;
+    padding: 14px 16px;
+    border-radius: 12px;
+    margin-bottom: 18px;
+    box-shadow: 0 4px 14px rgba(155, 107, 255, 0.12);
+    animation: fadeSlideIn .5s ease forwards;
+}
+
+.dark .we-prompt {
+    background: rgba(255,255,255,0.05);
+    border-left: 5px solid #bb86fc;
+}
+
+.we-prompt-title {
+    font-weight: 700;
+    font-size: 15px;
+    margin-bottom: 6px;
+    color: #6a3fcc;
+}
+
+.dark .we-prompt-title {
+    color: #d8b2ff;
+}
+
+.we-prompt-text {
+    font-size: 14px;
+    line-height: 1.5;
+    margin-bottom: 6px;
+    color: #3d2e64;
+}
+
+.dark .we-prompt-text {
+    color: #e3d1ff;
+}
+
+.we-prompt-difficulty {
+    font-size: 13px;
+    font-weight: bold;
+    background: #e8d9ff;
+    padding: 4px 10px;
+    border-radius: 8px;
+    display: inline-block;
+    color: #6a3fcc;
+}
+
+.dark .we-prompt-difficulty {
+    background: rgba(255,255,255,0.12);
+    color: #e3d1ff;
+}
+
+@keyframes fadeSlideIn {
+    0% { opacity: 0; transform: translateY(8px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+/* ----------------------------------------
+   NOTIFICATION POPUP DESIGN
+-------------------------------------------*/
+.notif-popup {
+    position: absolute;
+    top: 64px;
+    right: 80px;
+    width: 360px;
+    background: var(--card-light);
+    border-radius: 18px;
+    padding: 0;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.15);
+    display: none;
+    flex-direction: column;
+    max-height: 480px;
+    overflow: hidden;
+    z-index: 200;
+}
+
+body.dark .notif-popup {
+    background: var(--card-dark);
+    box-shadow: 0 12px 30px rgba(255,255,255,0.07);
+}
+
+.notif-header {
+    padding: 16px;
+    font-size: 17px;
+    font-weight: 700;
+    border-bottom: 1px solid rgba(0,0,0,0.1);
+    background-color:rgba(225, 215, 215, 0.69);
+}
+
+body.dark .notif-header {
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    background-color:rgba(43, 10, 231, 0.22);
+}
+
+.notif-body {
+    overflow-y: auto;
+    max-height: 420px;
+}
+
+.notif-item {
+    padding: 16px;
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+    cursor: pointer;
+    transition: background .2s;
+}
+
+.notif-item:hover {
+    background: rgba(0,0,0,0.04);
+}
+
+body.dark .notif-item:hover {
+    background: rgba(255,255,255,0.05);
+}
+
+.notif-item.unread {
+    background: rgba(155,89,182,0.06);
+}
+
+body.dark .notif-item.unread {
+    background: rgba(155,89,182,0.18);
+}
+
+.notif-title {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.notif-msg {
+    font-size: 13px;
+    opacity: 0.8;
+    margin-top: 4px;
+}
+
+.notif-meta {
+    text-align: right;
+    font-size: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.notif-mark {
+    color: #6a4c93;
+    font-size: 10px;
+}
+
+.notif-empty {
+    text-align: center;
+    padding: 24px;
+    opacity: .6;
+}
+
+.notif-popup {
+    position: absolute;
+    top: 65px;
+    right: 60px;
+    width: 380px;
+    background: var(--card-light);
+    border-radius: 18px;
+    box-shadow: 0 18px 40px rgba(0,0,0,0.25);
+    overflow: hidden;
+    display: none;
+    flex-direction: column;
+    max-height: 520px;
+    z-index: 2000;
+}
+
+.notif-body {
+    overflow-y: auto;
+    max-height: 460px;
+    padding: 0;
+}
+
+.notif-body::-webkit-scrollbar {
+    width: 6px;
+}
+.notif-body::-webkit-scrollbar-thumb {
+    background: #9b59b6;
+    border-radius: 10px;
+}
+
+.notif-item {
+    display: flex;
+    gap: 12px;
+    padding: 14px;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+    transition: background .2s ease;
+    cursor: pointer;
+}
+
+.notif-item:hover {
+    background: rgba(155,89,182,0.08);
+}
+
+.notif-item.unread {
+    background: rgba(155,89,182,0.12);
+}
+
+.notif-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+}
+
+.icon-1 { background: #6c5ce7; }   /* course */
+.icon-2 { background: #a55eea; }   /* lesson */
+.icon-3 { background: #00b894; }   /* message */
+.icon-4 { background: #fdcb6e; }   /* badge */
+.icon-5 { background: #e17055; }   /* leaderboard */
+
+.mark-read-btn {
+    background: transparent;
+    color: #9b59b6;
+    border: none;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 0;
+}
+.mark-read-btn:hover {
+    color: #6a4c93;
+    text-decoration: underline;
+}
+
+/* Add this to your existing CSS */
+#weImproveBtn {
+    display: none; /* Hidden by default */
+}
+
+#weEvaluateBtn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
 
 </style>
 </head>
@@ -703,29 +1056,31 @@ body:not(.dark) .issue:hover {
     <h3>Lingoland</h3>
   </div>
   <div class="menu">
-    <a href="../user_dashboard/user-dashboard.php"><i class="fas fa-home"></i> Home</a>
-    <a href="#" ><i class="fas fa-book"></i> Courses</a>
-    <a id="flashToggle"><i class="fas fa-th-large"></i> Flashcards <i class="fas fa-chevron-right"></i></a>
-    <div class="sub" id="flashSub">
-      <a href="#">Review</a>
-      <a href="#">Add New</a>
+          <a href="../user_dashboard/user-dashboard.php" ><i class="fas fa-home"></i> <span>Home</span></a>
+      <a href="../courses/courses.php"><i class="fas fa-book"></i> <span>Courses</span></a>
+      <a href="../leaderboard/view_leaderboard.php"><i class="fas fa-trophy"></i> <span>Leaderboard</span></a>
+
+      <a id="flashToggle"><span><i class="fas fa-th-large"></i> Flashcards</span><i class="fas fa-chevron-right"></i></a>
+      <div class="sub" id="flashSub">
+        <a href="../user_flashcards/user_flashcards.php">Review Flashcards</a>
+        <a href="../user_flashcards/create_flashcard.php">Add New Flashcard</a>
+         <a href="../user_flashcards/bookmark_flashcard.php">Bookmarked Flashcard</a>
+      </div>
+
+      <a id="vocabToggle"><span><i class="fas fa-language"></i> Vocabulary</span><i class="fas fa-chevron-right"></i></a>
+      <div class="sub" id="vocabSub">
+        <a href="../user_dashboard_words/user_dashboard_words.php">Study New Words</a>
+        <a href="../user_dashboard_words/add_words.php">Your Dictionary</a>
+      </div>
+
+      <a href="../user_badge/user_badge.php"><i class="fas fa-award"></i> <span>Badge</span></a>
+      <a href="../user_certificate/user_certificate.php"><i class="fas fa-certificate"></i> <span>Certificates</span></a>
+      <a id="writingToggle" class="active"><i class="fas fa-robot"></i> AI Writing Assistant<i class="fas fa-chevron-right"></i></a>
+    <div class="sub" id="writingSub">
+      <a href="../writing_evaluation/writing_evaluation.php" class="active">Evaluate Writing</a>
+      <a href="../writing_evaluation/my_writing.php">My Writings</a>
     </div>
-    <a id="vocabToggle"><i class="fas fa-language"></i> Vocabulary <i class="fas fa-chevron-right"></i></a>
-    <div class="sub" id="vocabSub">
-      <a href="#">Study</a>
-      <a href="#">Your Dictionary</a>
-    </div>
-    <a href="#"><i class="fas fa-pencil-alt"></i> Quiz</a>
-    <a href="#"><i class="fas fa-trophy"></i> Leaderboard</a>
-    <a href="#"><i class="fas fa-comments"></i> Forum</a>
-    <a href="#"><i class="fas fa-award"></i> Badges</a>
-     <a href="#"><i class="fas fa-certificate"></i> <span>Certificates</span></a>
-    <a id="writingToggle" class="active"><i class="fas fa-robot"></i> AI Writing Assistant<i class="fas fa-chevron-right"></i></a>
-    <div class="sub show" id="writingSub">
-      <a href="#">Evaluate Writing</a>
-      <a href="#">My Writings</a>
-    </div>
-    <a href="../user_dashboard/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a>
+      <a href="../user_dashboard/logout.php"><i class="fas fa-sign-out-alt"></i> <span>Logout</span></a>
   </div>
 </div>
 
@@ -736,38 +1091,83 @@ body:not(.dark) .issue:hover {
     <h3>Evaluate your Writing</h3>
   </div>
   <div class="right">
-    <button class="icon-btn" id="notifBtn">🔔<span class="badge" id="notifBadge">5</span></button>
-    <div id="notifPop" class="popup" style="display:none;position:absolute;top:64px;right:100px;background:var(--card-light);padding:10px;border-radius:10px;box-shadow:0 8px 20px rgba(0,0,0,0.1);">New course added!</div>
-    <button class="icon-btn" id="messageBtn">📩<span class="badge" id="msgBadge">3</span></button>
-    <div id="msgPop" class="popup" style="display:none;position:absolute;top:64px;right:60px;background:var(--card-light);padding:10px;border-radius:10px;box-shadow:0 8px 20px rgba(0,0,0,0.1);">You have 2 new messages</div>
+    <button class="icon-btn" id="notifBtn">🔔<span class="badge" id="notifBadge"></span></button>
+    <div id="notifPopup" class="notif-popup">
+    <div class="notif-header">Notifications</div>
+
+    <div class="notif-body">
+
+        <?php foreach ($notif_list as $n): ?>
+
+        <div class="notif-item <?php echo $n['is_read'] ? 'read' : 'unread'; ?>"
+             data-id="<?php echo $n['notification_id']; ?>">
+
+            <div class="notif-icon icon-<?php echo $n['notification_id']; ?>">
+                <?php
+                    $icons = [
+                        1 => "fa-graduation-cap", // course
+                        2 => "fa-book",           // lesson
+                        3 => "fa-envelope",       // message
+                        4 => "fa-award",          // badge
+                        5 => "fa-trophy",         // leaderboard
+                    ];
+                ?>
+                <i class="fas <?php echo $icons[$n['notification_id']]; ?>"></i>
+            </div>
+
+            <div class="notif-content">
+                <div class="notif-title"><?php echo htmlspecialchars($n['title']); ?></div>
+                <div class="notif-msg"><?php echo htmlspecialchars($n['message']); ?></div>
+            </div>
+
+            <div class="notif-meta">
+                <span class="notif-time">
+                    <?php echo date("M d, h:i A", strtotime($n['is_sent'])); ?>
+                </span>
+
+                <button class="mark-read-btn" 
+                        data-id="<?php echo $n['notification_id']; ?>">
+                    <?php echo $n['is_read'] ? "Seen" : "Mark"; ?>
+                </button>
+            </div>
+
+        </div>
+
+        <?php endforeach; ?>
+
+    </div>
+</div>
+
     <button class="icon-btn" id="settingsBtn"><i class="fas fa-cog"></i></button>
-    <span id="darkModeToggle" class="icon-btn">🌓</span>
-    <img src="<?php echo !empty($_SESSION['profile_picture']) ? '../settings/' . $_SESSION['profile_picture'] : 'https://i.pravatar.cc/40'; ?>" alt="Profile" style="border-radius:50%">
+    <span id="themeBtn" class="icon-btn">🌓</span>
+     <img id="profilePic" src="<?php echo $profile_pic; ?>" alt="profile" style="width:46px;height:46px;border-radius:10px;cursor:pointer;border:2px solid rgba(0,0,0,0.06)">
+  </div>
   </div>
 </div>
 
-<!-- SETTINGS PANEL (updated with profile editing UI) -->
+  <!-- SETTINGS PANEL (right slide-in) -->
+ <!-- SETTINGS PANEL (updated with profile editing UI) -->
 <aside id="settingsPanel" class="settings-panel" aria-hidden="true">
   <button class="settings-close" id="settingsClose"><i class="fas fa-times"></i></button>
 
   <div class="settings-profile">
     <div class="profile-photo">
-      <img id="settingsProfilePic" src="https://i.pravatar.cc/120?img=12" alt="Profile Picture">
+      <img id="settingsProfilePic" src="<?php echo $profile_pic; ?>" alt="Profile Picture">
       <button id="editPhotoBtn" class="edit-photo"><i class="fas fa-pen"></i></button>
       <input type="file" id="photoInput" accept="image/*" hidden>
     </div>
-    <h3 id="userFullName">Ramisa Anjum</h3>
-    <p id="userEmail">ramisa.anjum345@gmail.com</p>
+    <h3 id="userFullName"><?php echo $full_name; ?></h3>
+    <p id="userEmail"><?php echo $user['email']; ?></p>
   </div>
 
   <div class="settings-section">
     <h4>Profile</h4>
     <div class="field-group">
-      <input type="text" id="firstName" value="Ramisa" disabled>
+      <input type="text" id="firstName" value="<?php echo $user['first_name']; ?>"disabled>
       <button class="edit-btn" data-field="firstName"><i class="fas fa-pen"></i></button>
     </div>
     <div class="field-group">
-      <input type="text" id="lastName" value="Anjum" disabled>
+      <input type="text" id="lastName" value="<?php echo $user['last_name']; ?>" disabled>
       <button class="edit-btn" data-field="lastName"><i class="fas fa-pen"></i></button>
     </div>
   </div>
@@ -775,11 +1175,11 @@ body:not(.dark) .issue:hover {
   <div class="settings-section">
     <h4>Account</h4>
     <div class="field-group">
-      <input type="email" id="emailField" value="ramisa.anjum345@gmail.com" disabled>
+      <input type="email" id="emailField" value="<?php echo $user['email']; ?>" disabled>
       <button class="edit-btn" data-field="emailField"><i class="fas fa-pen"></i></button>
     </div>
     <div class="field-group">
-      <input type="password" id="passwordField" value="••••••" disabled>
+      <input type="password" id="passwordField" value="<?php echo $user['password']; ?>"disabled>
       <button class="edit-btn" data-field="passwordField"><i class="fas fa-pen"></i></button>
     </div>
   </div>
@@ -806,6 +1206,16 @@ body:not(.dark) .issue:hover {
   <section class="we-panel">
     <div class="we-main-left">
       <div class="we-textcard">
+         <!-- NEW: AI Generated Question Prompt -->
+   <div class="we-prompt">
+    <div class="we-prompt-title">Your Writing Task</div>
+    <div id="wePromptText" class="we-prompt-text">
+        Generating task...
+    </div>
+    <div id="wePromptDifficulty" class="we-prompt-difficulty"></div>
+</div>
+
+
         <textarea id="weTextarea" placeholder="Paste your writing here..."></textarea>
         <div class="we-text-meta">
           <span id="weWordCount">0 words</span>
@@ -899,6 +1309,18 @@ body:not(.dark) .issue:hover {
 </div>
 
 <script>
+
+
+// Debug PHP variables
+console.log('PHP Variables:', {
+    profile_id: <?php echo intval($profile_id ?? 0); ?>,
+    age_group: "<?php echo $age_group; ?>",
+    target_exam: "<?php echo $target_exam; ?>",
+    proficiency: "<?php echo $proficiency; ?>", 
+    learning_style: "<?php echo $learning_style; ?>",
+    interests: <?php echo json_encode($interests_array); ?>
+});
+
 console.log("JS Loaded ✓");
 
 // Sidebar submenu toggle
@@ -906,90 +1328,315 @@ const flashToggle = document.getElementById('flashToggle');
 const vocabToggle = document.getElementById('vocabToggle');
 const writingToggle = document.getElementById('writingToggle'); // FIXED TYPO: was 'writintToggle'
 
-flashToggle.addEventListener('click', () => document.getElementById('flashSub').classList.toggle('show'));
-vocabToggle.addEventListener('click', () => document.getElementById('vocabSub').classList.toggle('show'));
-writingToggle.addEventListener('click', () => document.getElementById('writingSub').classList.toggle('show'));
+if (flashToggle) flashToggle.addEventListener('click', () => document.getElementById('flashSub').classList.toggle('show'));
+if (vocabToggle) vocabToggle.addEventListener('click', () => document.getElementById('vocabSub').classList.toggle('show'));
+if (writingToggle) writingToggle.addEventListener('click', () => document.getElementById('writingSub').classList.toggle('show'));
 
 // Popup toggles
 const notifBtn = document.getElementById('notifBtn');
-const msgBtn = document.getElementById('messageBtn');
-notifBtn.onclick = () => {
-    document.getElementById('notifPop').style.display = document.getElementById('notifPop').style.display === 'block' ? 'none' : 'block';
-    document.getElementById('msgPop').style.display = 'none';
-};
-msgBtn.onclick = () => {
-    document.getElementById('msgPop').style.display = document.getElementById('msgPop').style.display === 'block' ? 'none' : 'block';
-    document.getElementById('notifPop').style.display = 'none';
+
+if (notifBtn) notifBtn.onclick = () => {
+    const np = document.getElementById('notifPop');
+    const mp = document.getElementById('msgPop');
+    if (np) np.style.display = np.style.display === 'block' ? 'none' : 'block';
+    if (mp) mp.style.display = 'none';
 };
 
 // Settings panel
 const settingsBtn = document.getElementById('settingsBtn');
 const settingsPanel = document.getElementById('settingsPanel');
 const settingsClose = document.getElementById('settingsClose');
-settingsBtn.onclick = () => settingsPanel.classList.add('open');
-settingsClose.onclick = () => settingsPanel.classList.remove('open');
+if (settingsBtn && settingsPanel) settingsBtn.onclick = () => settingsPanel.classList.add('open');
+if (settingsClose && settingsPanel) settingsClose.onclick = () => settingsPanel.classList.remove('open');
 
-// Dark mode toggle
-const darkToggle = document.getElementById('darkModeToggle');
-darkToggle.addEventListener('click', () => {
-    document.body.classList.toggle('dark');
-    localStorage.setItem('darkMode', document.body.classList.contains('dark'));
-});
-if (localStorage.getItem('darkMode') === 'true') document.body.classList.add('dark');
+  // --------- THEME ----------
+    const themeBtn=document.getElementById('themeBtn');
+
+// Function to save theme to database
+async function saveThemeToDatabase(themeId) {
+    try {
+        console.log('Saving theme - Theme ID:', themeId, 'User ID:', <?php echo $user_id; ?>);
+        
+        const formData = new FormData();
+        formData.append('theme_id', themeId);
+        formData.append('user_id', <?php echo $user_id; ?>);
+
+        // Log what's being sent
+        for (let [key, value] of formData.entries()) {
+            console.log('FormData:', key, value);
+        }
+
+        const response = await fetch('../user_dashboard/update_theme.php', {
+            method: 'POST',
+            body: formData
+        });
+
+        console.log('Response status:', response.status);
+        const result = await response.json();
+        console.log('Server response:', result);
+        
+        if (!result.success) {
+            console.error('Failed to save theme:', result.message);
+        } else {
+            console.log('Theme saved successfully!');
+        }
+    } catch (error) {
+        console.error('Error saving theme:', error);
+    }
+}
+
+// Initialize theme from localStorage or default to light
+const currentTheme = localStorage.getItem('lingo_theme') || 'light';
+if (currentTheme === 'dark') {
+    document.body.classList.add('dark');
+}
+
+// Theme button click handler
+themeBtn.onclick = async () => {
+    const isDark = document.body.classList.toggle('dark');
+    const theme = isDark ? 'dark' : 'light';
+    const themeId = isDark ? 2 : 1;
+    
+    // Save to localStorage
+    localStorage.setItem('lingo_theme', theme);
+    
+    // Save to database
+    await saveThemeToDatabase(themeId);
+    
+    // Show notification
+    showNotification(`Theme changed to ${theme} mode`);
+};
 
 // Chatbot
-const chatBtn = document.getElementById('chatBtn');
-const chatWindow = document.getElementById('chatWindow');
-chatBtn.onclick = () => chatWindow.classList.toggle('show');
+const chatBtn=document.getElementById('chatBtn');
+const chatWindow=document.getElementById('chatWindow');
+chatBtn.onclick=()=>chatWindow.classList.toggle('show');
 
-// Animation
-window.addEventListener('load', () => {
-    document.querySelectorAll('.stagger').forEach((el, i) => {
-        setTimeout(() => {
-            el.classList.add('enter');
-        }, i * 120);
-    });
+// Click on example → fill input + show send button
+document.querySelectorAll(".chat-example").forEach(ex => {
+  ex.addEventListener("click", () => {
+    document.getElementById("chatInput").value = ex.innerText;
+  });
 });
 
+// Hide examples when a message is sent
+function hideExamples() {
+  document.querySelectorAll(".chat-example").forEach(ex => ex.style.display = "none");
+}
+
+document.getElementById("chatSend").addEventListener("click", async function () {
+    const input = document.getElementById("chatInput");
+    const text = input.value.trim();
+    if (!text) return;
+
+    hideExamples();   // 🟣 hide prompts on first message
+
+    input.value = "";
+    let body = document.getElementById("chatBody");
+
+    body.innerHTML += `<div class="msg-user">${text}</div>`;
+    body.scrollTop = body.scrollHeight;
+
+    let loading = document.createElement("div");
+    loading.innerHTML = `<div class='loading-orbs'><div></div><div></div><div></div></div>`;
+    body.appendChild(loading);
+
+    try {
+        let res = await fetch("http://127.0.0.1:5001/ai_tutor", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                profile_id: <?php echo $profile_id; ?>,
+                lesson_id: null,
+                message: text
+            })
+        });
+
+        let data = await res.json();
+        loading.remove();
+
+        body.innerHTML += `<div class="msg-ai">${data.reply}</div>`;
+        body.scrollTop = body.scrollHeight;
+
+    } catch (err) {
+        loading.remove();
+        body.innerHTML += `<div class="msg-ai" style="color:red;">AI server error.</div>`;
+    }
+});
+
+
+if (writingToggle && writingSub) {
+  writingToggle.addEventListener('click', ()=> writingSub.classList.toggle('show'));
+  writingSub.classList.add('show'); // keep visible and Review active
+}
+
 // -------- SETTINGS PANEL BEHAVIOR --------
+
+// profile photo upload
 const editPhotoBtn = document.getElementById('editPhotoBtn');
 const photoInput = document.getElementById('photoInput');
 const profileImg = document.getElementById('settingsProfilePic');
 editPhotoBtn.addEventListener('click', () => photoInput.click());
-photoInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = () => {
-            profileImg.src = reader.result;
-        };
-        reader.readAsDataURL(file);
-    }
-});
+// Profile photo upload with database saving
+photoInput.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
 
-// Editable fields toggle
-document.querySelectorAll('.edit-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        const fieldId = btn.getAttribute('data-field');
-        const field = document.getElementById(fieldId);
-        const icon = btn.querySelector('i');
+  // Validate file type
+  if (!file.type.startsWith('image/')) {
+    alert('Please select an image file');
+    return;
+  }
 
-        if (field.disabled) {
-            field.disabled = false;
-            field.focus();
-            icon.classList.replace('fa-pen', 'fa-save');
-            field.style.borderBottom = '2px solid var(--lilac-2)';
-        } else {
-            field.disabled = true;
-            icon.classList.replace('fa-save', 'fa-pen');
-            field.style.borderBottom = 'none';
-            alert(`Saved: ${field.value}`);
-        }
+  // Validate file size (max 2MB)
+  if (file.size > 2 * 1024 * 1024) {
+    alert('Image size should be less than 2MB');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('profile_picture', file);
+  formData.append('user_id', <?php echo $user_id; ?>);
+
+  try {
+    const response = await fetch('update_profile_picture.php', {
+      method: 'POST',
+      body: formData
     });
+
+    const result = await response.json();
+
+    if (result.success) {
+      profileImg.src = result.new_image_url;
+      showNotification('Profile picture updated successfully!');
+      
+      // Update header profile picture too
+      const headerProfilePic = document.getElementById('profilePic');
+      if (headerProfilePic) {
+        headerProfilePic.src = result.new_image_url;
+      }
+    } else {
+      alert('Error updating profile picture: ' + result.message);
+    }
+  } catch (error) {
+    alert('Error uploading image: ' + error.message);
+  }
 });
+
+// Editable fields toggle with database saving
+document.querySelectorAll('.edit-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const fieldId = btn.getAttribute('data-field');
+    const field = document.getElementById(fieldId);
+    const icon = btn.querySelector('i');
+
+    if (field.disabled) {
+      // Enable editing mode
+      field.disabled = false;
+      field.focus();
+      icon.classList.replace('fa-pen', 'fa-save');
+      field.style.borderBottom = '2px solid var(--lilac-2)';
+    } else {
+      // Save mode - send data to server
+      field.disabled = true;
+      icon.classList.replace('fa-save', 'fa-pen');
+      field.style.borderBottom = 'none';
+      
+      try {
+        await saveFieldToDatabase(fieldId, field.value);
+        showNotification(`Successfully updated ${getFieldName(fieldId)}!`);
+        
+        // Update the displayed name if first/last name changed
+        if (fieldId === 'firstName' || fieldId === 'lastName') {
+          updateDisplayName();
+        }
+      } catch (error) {
+        alert(`Error saving ${getFieldName(fieldId)}: ${error.message}`);
+        // Revert icon if save fails
+        icon.classList.replace('fa-pen', 'fa-save');
+        field.disabled = false;
+      }
+    }
+  });
+});
+
+// Function to get field name for display
+function getFieldName(fieldId) {
+  const fieldNames = {
+    'firstName': 'First Name',
+    'lastName': 'Last Name', 
+    'emailField': 'Email',
+    'passwordField': 'Password'
+  };
+  return fieldNames[fieldId] || fieldId;
+}
+
+// Function to update displayed name in settings panel
+function updateDisplayName() {
+  const firstName = document.getElementById('firstName').value;
+  const lastName = document.getElementById('lastName').value;
+  const fullNameElement = document.getElementById('userFullName');
+  
+  if (fullNameElement) {
+    fullNameElement.textContent = `${firstName} ${lastName}`;
+  }
+}
+
+// Function to save field data to database
+async function saveFieldToDatabase(fieldName, fieldValue) {
+  const formData = new FormData();
+  formData.append('field', fieldName);
+  formData.append('value', fieldValue);
+  formData.append('user_id', <?php echo $user_id; ?>);
+
+  const response = await fetch('update_profile.php', {
+    method: 'POST',
+    body: formData
+  });
+
+  if (!response.ok) {
+    throw new Error('Network response was not ok');
+  }
+
+  const result = await response.json();
+  
+  if (!result.success) {
+    throw new Error(result.message || 'Failed to update profile');
+  }
+  
+  return result;
+}
+
+// Function to show notification
+function showNotification(message) {
+  // Create a temporary notification
+  const notification = document.createElement('div');
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: var(--lilac-1);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 1000;
+    font-weight: 500;
+  `;
+  notification.textContent = message;
+  
+  document.body.appendChild(notification);
+  
+  // Remove after 3 seconds
+  setTimeout(() => {
+    notification.remove();
+  }, 3000);
+}
 
 /* ---------- Writing Evaluation JS ---------- */
+
 (function(){
+
     // elements
     const ta = document.getElementById('weTextarea');
     const wc = document.getElementById('weWordCount');
@@ -1002,22 +1649,26 @@ document.querySelectorAll('.edit-btn').forEach(btn => {
 
     // Check if required elements exist
     if (!ta || !evalBtn) {
-        console.error('Required elements not found');
+        console.error('Required elements not found (weTextarea or weEvaluateBtn). Aborting writing JS.');
         return;
     }
 
+    // Disable eval until prompt is loaded (prevents race)
+    evalBtn.disabled = true;
+
     // Helper: animate gauge
     function animateGauge(gaugeEl, percent){
+        if (!gaugeEl) return;
         const arc = gaugeEl.querySelector('.g-arc');
         const text = gaugeEl.querySelector('.g-text');
         const dash = percent + ',100';
         
         // Reset first
-        arc.setAttribute('stroke-dasharray', '0,100');
+        if (arc) arc.setAttribute('stroke-dasharray', '0,100');
         
         // Animate after delay
         setTimeout(() => {
-            arc.setAttribute('stroke-dasharray', dash);
+            if (arc) arc.setAttribute('stroke-dasharray', dash);
             
             // Animate number counter
             let start = 0;
@@ -1117,156 +1768,434 @@ document.querySelectorAll('.edit-btn').forEach(btn => {
         });
     }
 
-    // Evaluate button handler
     // Evaluate button handler - UPDATED VERSION
-evalBtn.addEventListener('click', async () => {
-    const text = ta.value.trim();
-    if (!text) {
-        if (summaryBox) summaryBox.textContent = "Please paste or upload some text to evaluate.";
-        return;
-    }
+    evalBtn.addEventListener('click', async () => {
+        const text = ta.value.trim();
+        if (!text) {
+            if (summaryBox) summaryBox.textContent = "Please paste or upload some text to evaluate.";
+            return;
+        }
 
-    // UI state
-    evalBtn.disabled = true;
-    evalBtn.textContent = 'Evaluating...';
-    resetGaugesToZero();
-    
-    if (summaryBox) summaryBox.textContent = 'Contacting AI service — please wait...';
-    if (issuesBox) issuesBox.innerHTML = '';
-
-    try {
-        console.log('📝 Sending text to Python API...');
+        // UI state
+        evalBtn.disabled = true;
+        evalBtn.textContent = 'Evaluating...';
+        resetGaugesToZero();
         
-        // Call Python API with timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 100000); // 30 second timeout
+        if (summaryBox) summaryBox.textContent = 'Contacting AI service — please wait...';
+        if (issuesBox) issuesBox.innerHTML = '';
 
-        const pyRes = await fetch('http://127.0.0.1:5002/evaluate_writing', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ 
-                profile_id: <?php echo intval($profile_id ?? 0); ?>, 
-                text: text 
-            }),
-            signal: controller.signal
-        });
-
-        clearTimeout(timeoutId);
-
-        console.log('📨 API Response status:', pyRes.status);
-        
-        if (!pyRes.ok) {
-            throw new Error(`HTTP error! status: ${pyRes.status}`);
-        }
-
-        const ai = await pyRes.json();
-        console.log('🤖 AI Response:', ai);
-
-        // Check if we got an error response
-        if (ai.error) {
-            throw new Error(ai.error);
-        }
-
-        // Extract scores with fallbacks
-        const grammar = parseInt(ai.grammar_score || 75);
-        const coherence = parseInt(ai.coherence_score || 70);
-        const vocab = parseInt(ai.vocabulary_score || 65);
-        const overall = parseInt(ai.overall_score || 70);
-
-        console.log(`📊 Scores - Grammar: ${grammar}, Coherence: ${coherence}, Vocab: ${vocab}, Overall: ${overall}`);
-
-        // Animate gauges
-        animateGauge(document.getElementById('g-grammar'), grammar);
-        animateGauge(document.getElementById('g-coherence'), coherence);
-        animateGauge(document.getElementById('g-vocab'), vocab);
-        animateGauge(document.getElementById('g-overall'), overall);
-
-        // Update summary
-        if (summaryBox) {
-            summaryBox.innerHTML = `<strong>Summary:</strong> ${ai.ai_feedback_summary || 'Evaluation completed successfully.'}`;
-        }
-
-        // Update issues
-        if (issuesBox) {
-            issuesBox.innerHTML = '';
-            const suggestions = Array.isArray(ai.suggestions) ? ai.suggestions : [];
-            
-            if (suggestions.length > 0) {
-                suggestions.slice(0, 8).forEach(s => {
-                    const el = document.createElement('div');
-                    el.className = 'issue';
-                    el.innerHTML = `<div class="bullet"></div><div><p>${s}</p></div>`;
-                    issuesBox.appendChild(el);
-                });
-            } else {
-                const el = document.createElement('div');
-                el.className = 'issue';
-                el.innerHTML = `<div class="bullet" style="background:#5efc8d"></div><div><p><strong>Great job!</strong> No major issues detected in your writing.</p></div>`;
-                issuesBox.appendChild(el);
-            }
-        }
-
-        // Save to database
         try {
-            const saveRes = await fetch('writing_eval_save.php', {
+            console.log('📝 Sending text to Python API...');
+            
+            // Call Python API with timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 100000); // 100 second timeout
+
+            const pyRes = await fetch('http://127.0.0.1:5002/evaluate_writing', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    profile_id: <?php echo intval($profile_id ?? 0); ?>,
-                    text: text,
-                    ai_result: ai
-                })
+                body: JSON.stringify({ 
+                    profile_id: <?php echo intval($profile_id ?? 0); ?>, 
+                    text: text 
+                }),
+                signal: controller.signal
             });
-            
-            if (saveRes.ok) {
-                const saveJson = await saveRes.json();
-                console.log('💾 Saved evaluation to database:', saveJson);
-            }
-        } catch (saveErr) {
-            console.warn('Could not save evaluation:', saveErr);
-        }
 
-    } catch (err) {
-        console.error('❌ Evaluation error:', err);
-        if (summaryBox) {
-            if (err.name === 'AbortError') {
-                summaryBox.textContent = 'Request timeout. AI service is taking too long to respond.';
-            } else {
-                summaryBox.textContent = `Error: ${err.message}. Check console for details.`;
-            }
-        }
-        
-        // Show fallback scores
-        animateGauge(document.getElementById('g-grammar'), 60);
-        animateGauge(document.getElementById('g-coherence'), 60);
-        animateGauge(document.getElementById('g-vocab'), 60);
-        animateGauge(document.getElementById('g-overall'), 60);
-        
-    } finally {
-        evalBtn.disabled = false;
-        evalBtn.textContent = 'Evaluate It';
-    }
-});
-    // Improve button handler
-    if (improveBtn) {
-        improveBtn.addEventListener('click', () => {
-            // Just enable editing, don't reset scores
-            ta.disabled = false;
-            ta.style.opacity = "1";
+            clearTimeout(timeoutId);
+
+            console.log('📨 API Response status:', pyRes.status);
             
-            // Visual feedback
-            improveBtn.classList.add('pulse');
-            setTimeout(() => improveBtn.classList.remove('pulse'), 900);
+            if (!pyRes.ok) {
+                throw new Error(`HTTP error! status: ${pyRes.status}`);
+            }
+
+            const ai = await pyRes.json();
+            console.log('🤖 AI Response:', ai);
+
+            // Check if we got an error response
+            if (ai.error) {
+                throw new Error(ai.error);
+            }
+
+            // Extract scores with fallbacks
+            const grammar = parseInt(ai.grammar_score || 75);
+            const coherence = parseInt(ai.coherence_score || 70);
+            const vocab = parseInt(ai.vocabulary_score || 65);
+            const overall = parseInt(ai.overall_score || 70);
+
+            console.log(`📊 Scores - Grammar: ${grammar}, Coherence: ${coherence}, Vocab: ${vocab}, Overall: ${overall}`);
+
+             // ======== ADD THIS CODE ========
+            // Store original scores for comparison (MISSING!)
+            document.getElementById('g-grammar').setAttribute('data-original-score', grammar);
+            document.getElementById('g-coherence').setAttribute('data-original-score', coherence);
+            document.getElementById('g-vocab').setAttribute('data-original-score', vocab);
+            document.getElementById('g-overall').setAttribute('data-original-score', overall);
+            console.log('Stored original scores:', {grammar, coherence, vocab, overall});
+            // ================================
+
+            // Animate gauges
+            animateGauge(document.getElementById('g-grammar'), grammar);
+            animateGauge(document.getElementById('g-coherence'), coherence);
+            animateGauge(document.getElementById('g-vocab'), vocab);
+            animateGauge(document.getElementById('g-overall'), overall);
+
+            // Update summary
+            if (summaryBox) {
+                summaryBox.innerHTML = `<strong>Summary:</strong> ${ai.ai_feedback_summary || (ai.summary || 'Evaluation completed successfully.')}`;
+            }
+
+            // Update issues
+            if (issuesBox) {
+                issuesBox.innerHTML = '';
+                const suggestions = Array.isArray(ai.suggestions) ? ai.suggestions : (Array.isArray(ai.suggestion_json) ? ai.suggestion_json : []);
+                
+                if (suggestions.length > 0) {
+                    suggestions.slice(0, 8).forEach(s => {
+                        const el = document.createElement('div');
+                        el.className = 'issue';
+                        el.innerHTML = `<div class="bullet"></div><div><p>${s}</p></div>`;
+                        issuesBox.appendChild(el);
+                    });
+                } else {
+                    const el = document.createElement('div');
+                    el.className = 'issue';
+                    el.innerHTML = `<div class="bullet" style="background:#5efc8d"></div><div><p><strong>Great job!</strong> No major issues detected in your writing.</p></div>`;
+                    issuesBox.appendChild(el);
+                }
+            }
+
+            try {
+                const saveRes = await fetch('writing_eval_save.php', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        profile_id: <?php echo intval($profile_id ?? 0); ?>,
+                        text: text,
+                        ai_result: ai,
+                        writing_prompt: CURRENT_PROMPT,
+                        difficulty_level: CURRENT_DIFFICULTY,
+                        prompt_metadata: CURRENT_METADATA
+                    })
+                });
+                
+                console.log('Save response status:', saveRes.status);
+                
+                // Get response as text first to see what's coming back
+                const responseText = await saveRes.text();
+                console.log('Save response text:', responseText);
+                
+                try {
+                    const saveJson = JSON.parse(responseText);
+                    console.log('💾 Save response JSON:', saveJson);
+                    
+                    if (saveJson.success && saveJson.feedback_id) {
+                        window.feedback_id = saveJson.feedback_id;
+                        console.log('✅ Stored feedback_id:', window.feedback_id);
+                    } else if (saveJson.ok && saveJson.feedback_id) {
+                        // Handle old 'ok' format just in case
+                        window.feedback_id = saveJson.feedback_id;
+                        console.log('✅ Stored feedback_id (old format):', window.feedback_id);
+                    } else {
+                        console.warn('Save response but no feedback_id returned:', saveJson);
+                        // Still show buttons even if save failed
+                    }
+                } catch (parseError) {
+                    console.error('❌ Failed to parse JSON from writing_eval_save.php:', parseError);
+                    console.error('Raw response:', responseText);
+                }
+                
+            } catch (saveErr) {
+                console.error('❌ Network error saving evaluation:', saveErr);
+            }
+
+            // After evaluation (even if save fails), hide Evaluate button and show Improve button
+            if (evalBtn) {
+                evalBtn.style.display = 'none';
+            }
+            
+            if (improveBtn) {
+                improveBtn.style.display = 'block';
+                console.log('✅ Showed Improve button');
+            }
+        } catch (err) {
+            console.error('❌ Evaluation error:', err);
+            if (summaryBox) {
+                if (err.name === 'AbortError') {
+                    summaryBox.textContent = 'Request timeout. AI service is taking too long to respond.';
+                } else {
+                    summaryBox.textContent = `Error: ${err.message}. Check console for details.`;
+                }
+            }
+            
+            // Show fallback scores
+            animateGauge(document.getElementById('g-grammar'), 60);
+            animateGauge(document.getElementById('g-coherence'), 60);
+            animateGauge(document.getElementById('g-vocab'), 60);
+            animateGauge(document.getElementById('g-overall'), 60);
+            
+        } finally {
+            evalBtn.disabled = false;
+            evalBtn.textContent = 'Evaluate It';
+        }
+    });
+
+        // Improve button handler
+    if (improveBtn) {
+      
+        improveBtn.addEventListener('click', async () => {
+            // Get updated text from textarea
+            const updatedText = ta.value.trim();
+            if (!updatedText) {
+                alert('Please enter some text to improve');
+                return;
+            }
+
+            // Disable button and show loading state
+            improveBtn.disabled = true;
+            improveBtn.textContent = 'Re-evaluating...';
+
+            try {
+                // Step 1: Re-evaluate the improved text with ML API
+                console.log('📝 Re-evaluating improved text...');
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 100000);
+
+                const pyRes = await fetch('http://127.0.0.1:5002/evaluate_writing', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ 
+                        profile_id: <?php echo intval($profile_id ?? 0); ?>, 
+                        text: updatedText 
+                    }),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+
+                if (!pyRes.ok) {
+                    throw new Error(`HTTP error! status: ${pyRes.status}`);
+                }
+
+                const ai = await pyRes.json();
+                console.log('🤖 Re-evaluation AI Response:', ai);
+
+                // Check for errors
+                if (ai.error) {
+                    throw new Error(ai.error);
+                }
+
+                // Extract new scores
+                const newGrammar = parseInt(ai.grammar_score || 75);
+                const newCoherence = parseInt(ai.coherence_score || 70);
+                const newVocab = parseInt(ai.vocabulary_score || 65);
+                const newOverall = parseInt(ai.overall_score || 70);
+
+                // Step 2: Update UI with new scores
+                animateGauge(document.getElementById('g-grammar'), newGrammar);
+                animateGauge(document.getElementById('g-coherence'), newCoherence);
+                animateGauge(document.getElementById('g-vocab'), newVocab);
+                animateGauge(document.getElementById('g-overall'), newOverall);
+
+                // Update summary
+                if (summaryBox) {
+                    summaryBox.innerHTML = `<strong>Improved Summary:</strong> ${ai.ai_feedback_summary || ai.summary || 'Re-evaluation completed.'}`;
+                }
+
+                // Update issues
+                if (issuesBox) {
+                    issuesBox.innerHTML = '';
+                    const suggestions = Array.isArray(ai.suggestions) ? ai.suggestions : 
+                                      (Array.isArray(ai.suggestion_json) ? ai.suggestion_json : []);
+                    
+                    if (suggestions.length > 0) {
+                        // Show improvement suggestions
+                        const improvementTitle = document.createElement('h4');
+                        improvementTitle.textContent = 'Improvement Suggestions';
+                        improvementTitle.style.marginTop = '18px';
+                        improvementTitle.style.color = '#5efc8d';
+                        issuesBox.appendChild(improvementTitle);
+                        
+                        suggestions.slice(0, 8).forEach(s => {
+                            const el = document.createElement('div');
+                            el.className = 'issue';
+                            el.innerHTML = `<div class="bullet"></div><div><p>${s}</p></div>`;
+                            issuesBox.appendChild(el);
+                        });
+                    } else {
+                        const el = document.createElement('div');
+                        el.className = 'issue';
+                        el.innerHTML = `<div class="bullet" style="background:#5efc8d"></div>
+                                       <div><p><strong>Excellent improvement!</strong> Your writing shows significant enhancement.</p></div>`;
+                        issuesBox.appendChild(el);
+                    }
+                }
+
+                // Step 3: Save updated evaluation to database
+                try {
+                    const updateRes = await fetch('update_writing_feedback.php', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            feedback_id: window.feedback_id,
+                            submission_text: updatedText,
+                            grammar_score: newGrammar,
+                            coherence_score: newCoherence,
+                            vocabulary_score: newVocab,
+                            overall_score: newOverall,
+                            ai_feedback_summary: ai.ai_feedback_summary || ai.summary || '',
+                            suggestion_json: JSON.stringify(ai.suggestions || ai.suggestion_json || []),
+                            submitted_at: new Date().toISOString()
+                        })
+                    });
+                    
+                    if (updateRes.ok) {
+                        const result = await updateRes.json();
+                        if (result.success) {
+                            // Show success with new scores comparison
+                            const oldOverall = parseInt(document.getElementById('g-overall').getAttribute('data-original-score') || 0);
+                            const improvement = newOverall - oldOverall;
+                            
+                            // Visual feedback
+                            improveBtn.innerHTML = '<i class="fas fa-check"></i> Improved!';
+                            improveBtn.style.background = 'linear-gradient(90deg, #5efc8d, #00d4aa)';
+                            
+                            setTimeout(() => {
+                                // Hide Improve button after successful update
+                                improveBtn.style.display = 'none';
+                                
+                                // Show comparison message
+                                if (improvement > 0) {
+                                    showNotification(`🎉 Improved by ${improvement} points! Overall: ${oldOverall} → ${newOverall}`);
+                                } else {
+                                    showNotification('✅ Writing updated successfully!');
+                                }
+                            }, 1500);
+                            
+                        } else {
+                            alert('Error updating: ' + result.message);
+                            improveBtn.disabled = false;
+                            improveBtn.textContent = 'Improve Your Writing';
+                        }
+                    } else {
+                        alert('Failed to update writing in database');
+                        improveBtn.disabled = false;
+                        improveBtn.textContent = 'Improve Your Writing';
+                    }
+                } catch (saveError) {
+                    console.warn('Database save error:', saveError);
+                    // Still show success in UI even if DB save fails
+                    showNotification('✅ Evaluation updated! (Note: Database save failed)');
+                    improveBtn.disabled = false;
+                    improveBtn.textContent = 'Improve Your Writing';
+                }
+
+            } catch (err) {
+                console.error('❌ Re-evaluation error:', err);
+                
+                // Re-enable button
+                improveBtn.disabled = false;
+                improveBtn.textContent = 'Improve Your Writing';
+                
+                if (err.name === 'AbortError') {
+                    alert('Request timeout. AI service is taking too long to respond.');
+                } else {
+                    alert('Error during re-evaluation: ' + err.message);
+                }
+            }
         });
     }
 
-})();
+})(); // end IIFE
 
 // Page load animation
 window.addEventListener("load", () => {
     document.body.classList.add("we-loaded");
 });
+
+let CURRENT_PROMPT = null;
+let CURRENT_DIFFICULTY = null;
+let CURRENT_METADATA = null;
+
+async function loadWritingPromptOnOpen() {
+    try {
+        const profilePayload = {
+            profile: {
+                age_group: "<?php echo $age_group; ?>",
+                target_exam: "<?php echo $target_exam; ?>", 
+                proficiency_self: "<?php echo $proficiency; ?>",
+                learning_style: "<?php echo $learning_style; ?>",
+                interests: <?php echo json_encode($interests_array); ?>
+
+            }
+        };
+
+        const res = await fetch("http://127.0.0.1:5002/generate_prompt", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(profilePayload)
+        });
+
+        if (!res.ok) throw new Error('Prompt API failed: ' + res.status);
+
+        const data = await res.json();
+
+        CURRENT_PROMPT = data.writing_prompt || "Write a paragraph about your favorite hobby.";
+        CURRENT_DIFFICULTY = data.difficulty_level || "easy";
+        CURRENT_METADATA = profilePayload.profile;
+
+        const promptTextEl = document.getElementById("wePromptText");
+        const promptDiffEl = document.getElementById("wePromptDifficulty");
+        if (promptTextEl) promptTextEl.textContent = CURRENT_PROMPT;
+        if (promptDiffEl) promptDiffEl.textContent = "Difficulty: " + (CURRENT_DIFFICULTY || "EASY").toUpperCase();
+
+    } catch (error) {
+        console.warn('Prompt load error:', error);
+        CURRENT_PROMPT = "Write a paragraph about your favorite hobby.";
+        CURRENT_DIFFICULTY = "easy";
+        CURRENT_METADATA = {};
+
+        const promptTextEl = document.getElementById("wePromptText");
+        const promptDiffEl = document.getElementById("wePromptDifficulty");
+        if (promptTextEl) promptTextEl.textContent = CURRENT_PROMPT;
+        if (promptDiffEl) promptDiffEl.textContent = "Difficulty: EASY";
+    } finally {
+        // enable evaluate button after prompt attempt (so user can evaluate even with fallback)
+        const eb = document.getElementById('weEvaluateBtn');
+        if (eb) eb.disabled = false;
+    }
+}
+
+// ➤ Run immediately on page load
+window.addEventListener("DOMContentLoaded", loadWritingPromptOnOpen);
+
+// Toggle popup
+document.getElementById("notifBtn").addEventListener("click", () => {
+    let p = document.getElementById("notifPopup");
+    p.style.display = p.style.display === "flex" ? "none" : "flex";
+});
+
+// Mark as read
+$(document).on("click", ".mark-read-btn", function (e) {
+    e.stopPropagation();
+
+    let nid = $(this).data("id");
+    let item = $(this).closest(".notif-item");
+    let btn = $(this);
+
+   $.post("", { mark_read: nid }, function (res) {
+    if (res.trim() === "ok") {
+        item.removeClass("unread").addClass("read");
+        btn.text("Seen");
+        btn.prop("disabled", true).css("opacity","0.6");
+    }
+});
+
+});
+
 </script>
+
 
 <!-- pdf.js (worker-free simple build) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.6.172/pdf.min.js"></script>

@@ -1,0 +1,340 @@
+<?php
+session_start();
+
+if (!isset($_SESSION['user_id'])) {
+    header("Location: ../login_signup/login_signup.html");
+    exit();
+}
+
+$user_id = $_SESSION['user_id'];
+
+$conn = new mysqli("localhost", "root", "", "lingoland_db");
+
+if ($conn->connect_error) {
+    die("DB Connection failed: " . $conn->connect_error);
+}
+
+// Fetch last saved theme from sets table
+$sql = "SELECT theme_id FROM sets WHERE user_id = ? ORDER BY set_on DESC LIMIT 1";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$res = $stmt->get_result();
+$row = $res->fetch_assoc();
+
+$theme_id = $row ? $row['theme_id'] : 1; // default light
+$body_class = ($theme_id == 2) ? "dark" : "";
+
+?>
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Lingoland — Step 3 · Learning Goal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --bg-1:#f5a7d3;--bg-2:#97c0fc;
+      --accent-1:#6a4c93;--accent-2:#9b59b6;
+      --card:#fff;--glass:rgba(255,255,255,.45);
+      --muted:#6b6b6b;--radius:14px;
+      --shadow:0 10px 30px rgba(18,18,18,.08);
+      --text:#1f1f1f;
+    }
+    body.dark{
+      --bg-1:#2a2540;--bg-2:#2e2b3f;
+      --accent-1:#b89cd6;--accent-2:#8e6bb8;
+      --card:#12121a;--glass:rgba(255,255,255,.03);
+      --muted:#cfcfe6;--shadow:0 8px 24px rgba(0,0,0,.6);
+      --text:#f4f4f8;
+    }
+
+    html,body{margin:0;height:100%;
+      font-family:'Poppins',system-ui,sans-serif;
+      background:linear-gradient(135deg,var(--bg-1),var(--bg-2));
+      color:var(--text);overflow-x:hidden;
+      -webkit-font-smoothing:antialiased;
+    }
+    .wrap{display:flex;align-items:center;justify-content:center;min-height:100%;padding:36px;}
+    .stage{display:grid;grid-template-columns:460px 1fr;gap:28px;align-items:center;max-width:1100px;width:100%;}
+    .card{
+      background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));
+      border-radius:var(--radius);padding:32px;
+      box-shadow:var(--shadow);backdrop-filter:blur(8px);
+      border:1px solid rgba(255,255,255,.08);
+      position:relative;animation:fadeIn .7s ease-out forwards;
+      width:500px;
+      
+    }
+    @keyframes fadeIn{from{opacity:0;transform:translateY(25px)}to{opacity:1;transform:translateY(0)}}
+    .brand{display:flex;gap:12px;align-items:center;margin-bottom:18px;}
+    .logo-circle{width:56px;height:56px;border-radius:12px;
+      background:linear-gradient(135deg,var(--accent-1),var(--accent-2));
+      color:#fff;font-weight:700;font-size:20px;
+      display:flex;align-items:center;justify-content:center;
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(30px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-15px); }
+    }
+    .progress-top{display:flex;align-items:center;gap:10px;margin-bottom:18px;}
+    .dot{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.15);transition:.3s;}
+    .dot.active{width:28px;background:linear-gradient(90deg,var(--accent-1),var(--accent-2));
+      box-shadow:0 6px 14px rgba(105,64,140,.2);
+    }
+    .theme-toggle{position:absolute;top:18px;right:18px;
+      padding:8px;border-radius:50%;background:var(--glass);
+      cursor:pointer;border:1px solid rgba(255,255,255,.08);transition:.3s;
+    }
+    .theme-toggle:hover{transform:rotate(20deg);}
+    .title{font-size:26px;font-weight:700;margin:10px 0;}
+    .subtitle{font-size:15px;color:var(--muted);margin-bottom:16px;}
+    form{display:flex;flex-direction:column;gap:18px;margin-top:10px;}
+    .option-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px; height: 200px;}
+    .opt{
+      background:var(--card);border-radius:12px;
+      padding:16px;box-shadow:0 6px 18px rgba(11,11,12,.06);
+      cursor:pointer;transition:.25s ease;
+      border:2px solid transparent;text-align:left;font-size:15px;
+      height: 20px;
+      width: 220px;
+    }
+    .opt:hover{transform:translateY(-3px) scale(1.02);}
+    .opt.active{border-color:var(--accent-2);
+      box-shadow:0 8px 24px rgba(106,76,147,.25);
+    }
+    select,input{padding:12px 14px;border-radius:12px;border:1px solid rgba(0,0,0,.1);
+      background:var(--card);color:var(--text);font-size:15px;outline:none;
+    }
+    select:focus{border-color:var(--accent-2);box-shadow:0 0 0 3px rgba(155,89,182,.2);}
+    .btn{padding:14px 18px;border:none;border-radius:12px;font-weight:600;
+      cursor:pointer;transition:.3s;box-shadow:0 8px 20px rgba(106,76,147,.12);
+    }
+    .btn.primary{background:linear-gradient(90deg,var(--accent-1),var(--accent-2));color:#fff;}
+    .btn.primary:hover{transform:translateY(-2px);box-shadow:0 10px 25px rgba(106,76,147,.25);}
+    .preview{
+      height:460px;border-radius:var(--radius);padding:20px;
+      background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.01));
+      border:1px solid rgba(255,255,255,.04);
+      box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px;
+      animation:fadeIn 1s ease-out forwards;
+      margin-left: 100px;
+    }
+    .preview h4{margin:0;font-size:17px;}
+    .tile{background:var(--card);border-radius:10px;padding:12px;
+      box-shadow:0 6px 18px rgba(11,11,12,.06);font-size:14px;color:var(--text);
+      transition:.25s ease;
+    }
+    .tile:hover{transform:translateY(-3px) scale(1.02);}
+    .illustration{width:340px;animation:float 3.5s ease-in-out infinite;align-self:center;margin-top:auto;}
+    @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+    @media(max-width:980px){.stage{grid-template-columns:1fr}.preview{order:-1}}
+  </style>
+</head>
+
+<body  class="<?php echo $body_class; ?>">
+  <div class="wrap">
+    <div class="stage">
+      <div class="card">
+        <button id="themeBtn" class="theme-toggle">🌓</button>
+
+        <div class="brand">
+          <div class="logo-circle">L</div>
+          <div>
+            <h5>Lingoland</h5>
+            <p class="small" style="color:var(--muted)">AI-powered English learning</p>
+          </div>
+        </div>
+
+        <div class="progress-top">
+          <div class="dot active"></div>
+          <div class="dot active"></div>
+          <div class="dot active"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <span class="small">Step 3 of 6</span>
+        </div>
+
+        <h1 class="title">What’s your main goal for learning English?</h1>
+        <p class="subtitle">Your goal helps us personalize lessons, vocabulary, and course recommendations.</p>
+
+        <form id="goalForm" action="save_goal.php" method="POST">
+          <div class="option-grid" id="goalOptions">
+            <div class="opt">📘 IELTS / Academic English</div>
+            <div class="opt">💬 Everyday Conversation</div>
+            <div class="opt">🧑‍💼 Business English</div>
+            <div class="opt">✈️ Travel / Study Abroad</div>
+            <div class="opt">👶 Kids English</div>
+            <div class="opt">🎭 Personal Growth</div>
+          </div>
+
+          <label for="exam" style="margin-top:10px;">If you’re preparing for an exam, pick one:</label>
+          <select id="exam" name="target_exam">
+            <option value="">No specific exam</option>
+            <option value="IELTS">IELTS</option>
+            <option value="TOEFL">TOEFL</option>
+            <option value="DuolingoTest">Duolingo English Test</option>
+            <option value="Cambridge">Cambridge English</option>
+          </select>
+
+          <input type="hidden" name="learning_goal" id="learning_goal"/>
+          <button type="submit" class="btn primary" id="nextBtn">Next</button>
+        </form>
+      </div>
+
+      <aside class="preview">
+        <div class="screen-title">Preview</div>
+        <h4>Why we ask this</h4>
+        <div class="tile">🎯 We’ll match you with courses aligned to your goals.</div>
+        <div class="tile">📈 Helps our AI focus your progress on what truly matters.</div>
+        <div class="tile">💡 Goal-based learning improves motivation and retention.</div>
+        <img src="../img/onboarding_img3.png" alt="Goal Illustration" class="illustration"/>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    const dots=document.querySelectorAll('.dot');
+
+    const goalOptions=document.querySelectorAll('#goalOptions .opt');
+    const goalInput=document.getElementById('learning_goal');
+    const nextBtn=document.getElementById('nextBtn');
+
+    // Option selection
+    goalOptions.forEach(opt=>{
+      opt.addEventListener('click',()=>{
+        goalOptions.forEach(o=>o.classList.remove('active'));
+        opt.classList.add('active');
+        goalInput.value = opt.textContent.replace(/[^\w\s]/gi, '').trim();
+      });
+    });
+
+    // Animate dots
+  // Progress animation like Step 1
+    function advanceDots() {
+      dots.forEach((d,i)=> setTimeout(()=>{
+        dots.forEach(dd=>dd.classList.remove('active'));
+        for(let j=0;j<=i;j++){ dots[j].classList.add('active'); }
+      }, i*100));
+    }
+
+    // Submit handler + animation + backend save
+document.getElementById('goalForm').addEventListener('submit', e => {
+  e.preventDefault();
+
+  if (!goalInput.value) {
+    alert('Please select a learning goal.');
+    return;
+  }
+
+  const form = e.target;
+  const formData = new FormData(form);
+  // debug: list FormData key/values in console
+ for (const pair of formData.entries()) {
+  console.log('formData:', pair[0], '=', pair[1]);
+}
+
+  // Post data to backend
+  fetch(form.action, {
+    method: 'POST',
+    body: formData
+  })
+  .then(res => res.text())
+  .then(res => {
+    console.log('Server response:', res);
+    const card = document.querySelector('.card');
+    card.style.transition = 'transform .5s ease, opacity .5s ease';
+    card.style.transform = 'translateX(-40px) scale(.98)';
+    card.style.opacity = '.9';
+    advanceDots();
+
+    // Go to next step after short delay
+    setTimeout(() => {
+  if (res.includes("success")) {
+    window.location.href = "onboarding_step4.php";
+  } else {
+    alert("⚠️ Error saving goal: " + res);
+    console.error(res);
+  }
+}, 800);
+
+  })
+  .catch(err => console.error('Error saving goal:', err));
+});
+
+
+    // Accessibility
+    nextBtn.addEventListener('keydown',e=>{if(e.key==='Enter')nextBtn.click();});
+    window.addEventListener('load',()=>{goalOptions[0].focus();});
+
+ // --------- THEME ----------
+    const themeBtn=document.getElementById('themeBtn');
+
+// Function to save theme to database
+async function saveThemeToDatabase(themeId) {
+    try {
+        console.log('Saving theme - Theme ID:', themeId, 'User ID:', <?php echo $user_id; ?>);
+        
+        const formData = new FormData();
+        formData.append('theme_id', themeId);
+        formData.append('user_id', <?php echo $user_id; ?>);
+
+        // Log what's being sent
+        for (let [key, value] of formData.entries()) {
+            console.log('FormData:', key, value);
+        }
+
+        const response = await fetch('../user_dashboard/update_theme.php', {
+            method: 'POST',
+            body: formData
+        });
+
+        console.log('Response status:', response.status);
+        const result = await response.json();
+        console.log('Server response:', result);
+        
+        if (!result.success) {
+            console.error('Failed to save theme:', result.message);
+        } else {
+            console.log('Theme saved successfully!');
+        }
+    } catch (error) {
+        console.error('Error saving theme:', error);
+    }
+}
+
+// Initialize theme from localStorage or default to light
+const currentTheme = localStorage.getItem('lingo_theme') || 'light';
+if (currentTheme === 'dark') {
+    document.body.classList.add('dark');
+}
+
+// Theme button click handler
+themeBtn.onclick = async () => {
+    const isDark = document.body.classList.toggle('dark');
+    const theme = isDark ? 'dark' : 'light';
+    const themeId = isDark ? 2 : 1;
+    
+    // Save to localStorage
+    localStorage.setItem('lingo_theme', theme);
+    
+    // Save to database
+    await saveThemeToDatabase(themeId);
+    
+    // Show notification
+    showNotification(`Theme changed to ${theme} mode`);
+};
+
+  </script>
+</body>
+</html>

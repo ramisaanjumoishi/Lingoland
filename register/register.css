@@ -1,0 +1,212 @@
+
+body {
+    font-family: 'Roboto', sans-serif;
+    background: linear-gradient(to right, #f5a7d3, #97c0fc); 
+    margin: 0;
+    padding: 0;
+}
+
+.register-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+.register-box {
+    display: flex;
+    width: 80%;
+    max-width: 900px;
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+
+.left {
+    background: linear-gradient(to right, #8e44ad, #7a38a0);
+    color: white;
+    padding: 40px;
+    border-top-left-radius: 15px;
+    border-bottom-left-radius: 15px;
+    width: 50%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center; 
+    align-items: center;     
+    text-align: center;      
+}
+
+.left .logo {
+    width: 150px;  
+    height: auto;
+    margin-bottom: 20px;
+    margin-top: -80px;
+}
+
+.left p {
+    font-size: 18px;
+    margin-top: -50px;
+}
+
+
+
+.right {
+    padding: 40px;
+    width: 50%;
+}
+
+.right h3 {
+    font-size: 30px;
+    font-weight: 700;
+    margin-bottom: 20px;
+}
+
+.input-group {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.input-group .form-control {
+    padding-left: 40px;  
+    font-size: 16px;
+    border-radius: 10px;
+    border: 1px solid #ddd;
+    background-color: #f7f7f7;
+}
+
+.input-group .icon {
+    position: absolute;
+    top: 50%;
+    left: 10px;
+    transform: translateY(-50%);
+    width: 20px;  
+    height: 20px;
+    object-fit: contain;  
+}
+
+
+.btn-primary {
+    background-color: #8e44ad;
+    color: white;
+    padding: 12px 30px;
+    font-size: 18px;
+    border-radius: 10px;
+    width: 100%;
+    border: none;
+    margin-top: 30px;
+}
+
+.btn-primary:hover {
+    background-color: #7a38a0;
+}
+
+
+.already-have-account {
+    text-align: center;
+    margin-top: 30px;
+    font-size: 14px;
+}
+
+.already-have-account a {
+    color: #8e44ad;
+    text-decoration: none;
+}
+
+.already-have-account a:hover {
+    text-decoration: underline;
+}
+
+
+.checkbox {
+    font-size: 14px;
+    color: #333;
+}
+
+
+.input-group {
+    position: relative;
+    margin-bottom: 15px;
+}
+
+.input-group .form-control {
+    padding-left: 40px; 
+    font-size: 16px;  
+    background-color: #f7f7f7; 
+    color: #333;  
+}
+
+
+.input-group .icon {
+    position: absolute;
+    top: 50%;  
+    left: 10px;  
+    transform: translateY(-50%);  
+    width: 20px;  
+    height: 20px;  
+    z-index: 10;  
+}
+
+.icon-container {
+    position: absolute;
+    top: 125px; 
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 50px;
+    color: #8e44ad; 
+}
+
+
+
+@media (max-width: 768px) {
+    .register-box {
+        flex-direction: column;  
+    }
+
+    .left, .right {
+        width: 100%;             
+        border-radius: 0;        
+    }
+
+    .left {
+        border-top-left-radius: 15px;
+        border-top-right-radius: 15px;
+        border-bottom-left-radius: 0;
+        padding: 30px 20px;
+    }
+
+    .right {
+        padding: 25px 20px;
+    }
+
+    .right h3 {
+        font-size: 24px;
+    }
+
+    .left .logo {
+        width: 120px; 
+        margin-top: 0;
+        margin-bottom: -20px;
+    }
+
+    .left p {
+        margin-top: 0;
+        font-size: 16px;
+    }
+}
+
+@media (max-width: 420px) {
+    .form-control {
+        height: 45px;
+        font-size: 15px;
+    }
+
+    .btn-primary {
+        height: 48px;
+        font-size: 16px;
+    }
+
+    .right h3 {
+        font-size: 20px;
+    }
+}

@@ -1,0 +1,396 @@
+<?php
+session_start();
+
+if (!isset($_SESSION['user_id'])) {
+    header("Location: ../login_signup/login_signup.html");
+    exit();
+}
+
+$user_id = $_SESSION['user_id'];
+
+$conn = new mysqli("localhost", "root", "", "lingoland_db");
+
+if ($conn->connect_error) {
+    die("DB Connection failed: " . $conn->connect_error);
+}
+
+// Fetch last saved theme from sets table
+$sql = "SELECT theme_id FROM sets WHERE user_id = ? ORDER BY set_on DESC LIMIT 1";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$res = $stmt->get_result();
+$row = $res->fetch_assoc();
+
+$theme_id = $row ? $row['theme_id'] : 1; // default light
+$body_class = ($theme_id == 2) ? "dark" : "";
+
+?>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Lingoland — Step 4: Proficiency & Style</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+
+:root{
+  --bg-1:#f5a7d3; --bg-2:#97c0fc;
+  --accent-1:#6a4c93; --accent-2:#9b59b6;
+  --muted:#6b6b6b; --card:#ffffff;
+  --glass:rgba(255,255,255,0.45); --radius:14px;
+  --shadow:0 10px 30px rgba(18,18,18,0.08);
+  --text:#1f1f1f;
+}
+body.dark {
+  --bg-1:#2a2540; --bg-2:#2e2b3f;
+  --accent-1:#b89cd6; --accent-2:#8e6bb8;
+  --muted:#cfcfe6; --card:#12121a;
+  --glass:rgba(255,255,255,0.03);
+  --shadow:0 8px 24px rgba(0,0,0,0.6);
+  --text:#f4f4f8;
+}
+html,body{
+  height:120%;margin:0;font-family:'Poppins',sans-serif;
+  background:linear-gradient(135deg,var(--bg-1),var(--bg-2));
+  color:var(--text);
+}
+.wrap{min-height:100%;display:flex;align-items:center;justify-content:center;padding:36px;box-sizing:border-box;}
+.stage{width:100%;max-width:1100px;display:grid;grid-template-columns:460px 1fr;gap:28px;align-items:center;}
+.card{
+  background:linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02));
+  border-radius:var(--radius);padding:28px;box-shadow:var(--shadow);
+  backdrop-filter:blur(6px);color:var(--text);position:relative;
+  border:1px solid rgba(255,255,255,0.06);overflow:hidden;
+}
+.brand{display:flex;gap:12px;align-items:center;margin-bottom:18px;}
+.logo-circle{width:56px;height:56px;border-radius:12px;
+  background:linear-gradient(135deg,var(--accent-1),var(--accent-2));
+  display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:20px;
+}
+.title{font-size:26px;margin:8px 0 16px;font-weight:700;}
+.subtitle{margin:0 0 18px;color:var(--muted);font-size:15px;}
+.btn{
+  padding:12px 20px;border-radius:12px;border:0;font-weight:600;cursor:pointer;
+  display:inline-flex;align-items:center;gap:10px;transition:.15s;box-shadow:0 8px 20px rgba(106,76,147,0.12);
+}
+.btn.primary{background:linear-gradient(90deg,var(--accent-1),var(--accent-2));color:white;}
+.btn.ghost{background:transparent;color:var(--text);border:1px solid rgba(0,0,0,0.06);}
+.btn:active{transform:translateY(1px);}
+.progress-top{display:flex;align-items:center;gap:12px;margin-top:18px;margin-bottom:6px;}
+.dots{display:flex;gap:6px;}
+.dot{width:10px;height:10px;border-radius:6px;background:rgba(255,255,255,0.12);}
+.dot.active{width:28px;background:linear-gradient(90deg,var(--accent-1),var(--accent-2));box-shadow:0 6px 14px rgba(105,64,140,0.18);}
+.preview{
+  height:440px;border-radius:var(--radius);padding:18px;display:flex;flex-direction:column;gap:12px;
+  background:linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01));
+  border:1px solid rgba(255,255,255,0.04);box-shadow:var(--shadow);
+}
+.preview h4{margin:6px 0 0;font-size:16px;}
+.preview .tile{background:var(--card);border-radius:10px;padding:12px;
+  box-shadow:0 6px 18px rgba(11,11,12,0.06);transition:.22s;}
+.preview .tile:hover{transform:translateY(-6px);box-shadow:0 14px 30px rgba(11,11,12,0.08);}
+.theme-toggle{position:absolute;top:18px;right:18px;border-radius:999px;padding:8px;background:var(--glass);
+  border:1px solid rgba(255,255,255,0.06);cursor:pointer;}
+    .illustration {
+      width:340px;
+      animation: float 3.5s ease-in-out infinite;
+      align-self:center;
+      margin-top:auto;
+    }
+    .section-label strong {
+  display:block;
+  margin-bottom:8px;
+  font-size:16px;
+  color:var(--accent-1);
+}
+.options-level, .options-style {
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px;
+  margin:14px 0 28px;
+  justify-content:flex-start;
+}
+
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-15px)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(25px)}to{opacity:1;transform:translateY(0)}}
+    .brand{display:flex;gap:12px;align-items:center;margin-bottom:18px;}
+    .logo-circle{width:56px;height:56px;border-radius:12px;
+      background:linear-gradient(135deg,var(--accent-1),var(--accent-2));
+      color:#fff;font-weight:700;font-size:20px;
+      display:flex;align-items:center;justify-content:center;
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(30px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-15px); }
+    }
+@media(max-width:980px){.stage{grid-template-columns:1fr}.preview{order:-1;height:auto}}
+</style>
+</head>
+<body class="<?php echo $body_class; ?>">
+<div class="wrap">
+  <div class="stage">
+    <div class="card">
+      <button class="theme-toggle" id="themeBtn">🌓</button>
+      <div class="brand">
+        <div class="logo-circle">L</div>
+        <div><h5>Lingoland</h5><p class="small">AI-powered English Learning</p></div>
+      </div>
+
+      <div class="screen-title">Step 4 of 6</div>
+      <h1 class="title">🧠 Your Level & Learning Style</h1>
+      <p class="subtitle">Let’s tailor the lessons to your comfort zone and how you learn best!</p>
+
+      <div class="progress-top">
+        <div class="dots" id="dots">
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <div class="dot active"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+        </div>
+        <div class="muted small">Almost there!</div>
+      </div>
+
+      <form id="formStep4" action="save_step4.php" method="POST" style="margin-top:20px;">
+        <label class="section-label"><strong>How would you describe your English level?</strong></label>
+        <div class="options-level" style="display:flex;flex-wrap:wrap;gap:10px;margin:10px 0;">
+          <button type="button" class="opt" data-value="Beginner">🪄 Beginner</button>
+          <button type="button" class="opt" data-value="Intermediate">📘 Intermediate</button>
+          <button type="button" class="opt" data-value="Advanced">🚀 Advanced</button>
+        </div>
+        <input type="hidden" name="proficiency_self" id="proficiency_self">
+
+        <label class="section-label"><strong>What describe you best as a learner?</strong></label>
+        <div class="options-style" data-target="learning_style" style="display:flex;flex-wrap:wrap;gap:10px;margin:10px 0;">
+       <button type="button" class="opt" data-value="Steady_Learner">🐢 Steady Learner</button>
+          <button type="button" class="opt" data-value="Fast_Learner">⚡ Fast Learner</button>
+          <button type="button" class="opt" data-value="Goal_Focused">🎯 Goal Focused</button>
+          <button type="button" class="opt" data-value="Creative">🎨 Creative</button>
+          <button type="button" class="opt" data-value="Social">🧑‍🤝‍🧑 Social</button>
+        </div>
+        <input type="hidden" name="learning_style" id="learning_style">
+
+        <label class="section-label"><strong>What kind of learner are you?</strong></label>
+        <div class="options-personality" data-target="personality_type" style="display:flex;flex-wrap:wrap;gap:10px;margin:10px 0;">
+           <button type="button" class="opt" data-value="Visual">🎨 Visual</button>
+          <button type="button" class="opt" data-value="Conversational">🗣️ Conversational</button>
+          <button type="button" class="opt" data-value="Theoretical">📖 Theoretical</button>
+          <button type="button" class="opt" data-value="Gamified">🎮 Gamified</button>
+          
+        </div>
+        <input type="hidden" name="personality_type" id="personality_type">
+
+        <div style="margin-top:24px;text-align:right;">
+          <button type="button" class="btn ghost" id="backBtn">← Back</button>
+          <button class="btn primary" id="nextBtn" type="submit">Next →</button>
+        </div>
+      </form>
+    </div>
+
+    <aside class="preview">
+      <div class="screen-title">Preview</div>
+      <h4>Why we ask this</h4>
+      <div class="tile">🎯 To match lessons to your comfort level</div>
+      <div class="tile">💡 Helps choose practice methods you’ll actually enjoy</div>
+      <div class="tile">🤖 Our AI adjusts tone and pace to your preference</div>
+       <img src="../img/onboarding_img4.png" alt="Learning Style Illustration" class="illustration"/>
+    </aside>
+  </div>
+</div>
+
+<script>
+ // --------- THEME ----------
+    const themeBtn=document.getElementById('themeBtn');
+
+// Function to save theme to database
+async function saveThemeToDatabase(themeId) {
+    try {
+        console.log('Saving theme - Theme ID:', themeId, 'User ID:', <?php echo $user_id; ?>);
+        
+        const formData = new FormData();
+        formData.append('theme_id', themeId);
+        formData.append('user_id', <?php echo $user_id; ?>);
+
+        // Log what's being sent
+        for (let [key, value] of formData.entries()) {
+            console.log('FormData:', key, value);
+        }
+
+        const response = await fetch('../user_dashboard/update_theme.php', {
+            method: 'POST',
+            body: formData
+        });
+
+        console.log('Response status:', response.status);
+        const result = await response.json();
+        console.log('Server response:', result);
+        
+        if (!result.success) {
+            console.error('Failed to save theme:', result.message);
+        } else {
+            console.log('Theme saved successfully!');
+        }
+    } catch (error) {
+        console.error('Error saving theme:', error);
+    }
+}
+
+// Initialize theme from localStorage or default to light
+const currentTheme = localStorage.getItem('lingo_theme') || 'light';
+if (currentTheme === 'dark') {
+    document.body.classList.add('dark');
+}
+
+// Theme button click handler
+themeBtn.onclick = async () => {
+    const isDark = document.body.classList.toggle('dark');
+    const theme = isDark ? 'dark' : 'light';
+    const themeId = isDark ? 2 : 1;
+    
+    // Save to localStorage
+    localStorage.setItem('lingo_theme', theme);
+    
+    // Save to database
+    await saveThemeToDatabase(themeId);
+    
+    // Show notification
+    showNotification(`Theme changed to ${theme} mode`);
+};
+
+const dots=document.querySelectorAll('.dot');
+function advanceDots() {
+      dots.forEach((d,i)=> setTimeout(()=>{
+        dots.forEach(dd=>dd.classList.remove('active'));
+        for(let j=0;j<=i;j++){ dots[j].classList.add('active'); }
+      }, i*100));
+    }
+
+// Option selection visual
+document.querySelectorAll('.opt').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const group = btn.parentElement;
+    group.querySelectorAll('.opt').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+
+    // Find which hidden input to update
+    if (group.classList.contains('options-level')) {
+      document.getElementById('proficiency_self').value = btn.dataset.value;
+    } else if (group.classList.contains('options-style')) {
+      document.getElementById('learning_style').value = btn.dataset.value;
+    } else if (group.classList.contains('options-personality')) {
+      document.getElementById('personality_type').value = btn.dataset.value;
+    }
+  });
+});
+
+document.querySelectorAll('.opt').forEach(b=>{
+  b.style.padding='12px 20px';
+  b.style.borderRadius='10px';
+  b.style.border='1px solid rgba(0,0,0,0.1)';
+  b.style.cursor='pointer';
+  b.style.background='var(--glass)';
+  b.style.backdropFilter='blur(6px)';
+  b.style.fontWeight='500';
+  b.style.color='var(--text)';
+  b.style.transition='all .25s ease';
+  b.addEventListener('mouseenter',()=>{
+    b.style.transform='translateY(-2px) scale(1.02)';
+    b.style.boxShadow='0 4px 14px rgba(0,0,0,0.08)';
+  });
+  b.addEventListener('mouseleave',()=>{
+    b.style.transform='';
+    b.style.boxShadow='';
+  });
+});
+
+const style=document.createElement('style');
+style.innerHTML=`
+  .opt.selected {
+    background:linear-gradient(135deg,var(--accent-1),var(--accent-2));
+    color:#fff !important;
+    border:1px solid transparent;
+    box-shadow:0 6px 20px rgba(106,76,147,0.25);
+  }
+  body.dark .opt {
+    border:1px solid rgba(255,255,255,0.08);
+    background:rgba(255,255,255,0.05);
+    color:var(--text);
+  }
+  body.dark .opt.selected {
+    background:linear-gradient(135deg,var(--accent-1),var(--accent-2));
+    color:#fff !important;
+    border:1px solid transparent;
+  }
+`;
+document.head.appendChild(style);
+// Back button: go to previous step (step4)
+    document.getElementById('backBtn').addEventListener('click', ()=> {
+      // small reverse animation
+      const card = document.querySelector('.card');
+      card.style.transition = 'transform .45s ease, opacity .45s ease';
+      card.style.transform = 'translateX(30px) scale(.995)';
+      card.style.opacity = '.95';
+       const illustration = document.querySelector(".illustration");
+      illustration.style.transition = 'transform .45s ease, opacity .45s ease';
+      illustration.style.transform = 'translateX(30px) scale(.995)';
+      illustration.style.opacity = '.95';
+      setTimeout(()=> { window.location.href = 'onboarding_step3.html'; }, 400);
+    });
+// Next transition
+document.getElementById('formStep4').addEventListener('submit', e => {
+  e.preventDefault();
+
+  const form = e.target;
+  const formData = new FormData(form);
+ 
+  // Check all three fields
+  const prof = formData.get('proficiency_self');
+  const style = formData.get('learning_style');
+  const personality = formData.get('personality_type');
+
+  if (!prof || !style || !personality) {
+    alert('Please select all three: level, style, and learner type.');
+    return;
+  }
+
+     // debug: list FormData key/values in console
+ for (const pair of formData.entries()) {
+  console.log('formData:', pair[0], '=', pair[1]);
+}
+
+  fetch(form.action, {
+    method: 'POST',
+    body: formData
+  })
+  .then(res => res.text())
+  .then(res => {
+    console.log('Server response:', res);
+    if (res.includes("success")) {
+  const card=document.querySelector('.card');
+  card.style.transition='transform .5s ease, opacity .5s ease';
+  card.style.transform='translateX(-40px) scale(.98)';
+  card.style.opacity='.92';
+  document.querySelector(".preview").style.animation = "fadeIn 0.5s reverse forwards";
+  advanceDots();
+  setTimeout(()=>{
+    window.location.href='onboarding_step5.php';
+  },700);
+}else {
+      alert("⚠️ Error saving data: " + res);
+      console.error(res);
+    }
+  })
+  .catch(err => console.error('Error saving step 4 data:', err));
+});
+</script>
+</body>
+</html>

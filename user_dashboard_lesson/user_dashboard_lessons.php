@@ -17,15 +17,26 @@ if (!$conn) {
     die("Connection failed: " . mysqli_connect_error());
 }
 
-// Fetch profile
-$sql = "SELECT profile_picture FROM user WHERE user_id = ?";
+/* ---------------------------
+   FETCH USER PROFILE DATA
+----------------------------*/
+$sql = "SELECT first_name, last_name, email, password, profile_picture, score 
+        FROM user WHERE user_id = ?";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
-$result = $stmt->get_result();
-if ($row = $result->fetch_assoc()) {
-    $_SESSION['profile_picture'] = $row['profile_picture'];
+$res = $stmt->get_result();
+$user = $res->fetch_assoc();
+
+$full_name = $user['first_name'] . " " . $user['last_name'];
+// Set profile picture - use img/icon9.png when no profile picture exists
+$profile_pic = '../img/icon9.png'; // Default avatar
+if (isset($user['profile_picture']) && !empty(trim($user['profile_picture']))) {
+    $profile_pic = '../settings/' . $user['profile_picture'];
 }
+$_SESSION['profile_picture'] = $profile_pic;
+
+
 
 // Theme
 $sql = "SELECT theme_id FROM sets WHERE user_id = ? ORDER BY set_on DESC LIMIT 1";
@@ -36,7 +47,16 @@ $result = $stmt->get_result();
 $theme_id = 1;
 if ($row = $result->fetch_assoc()) {
     $theme_id = $row['theme_id'];
+
 }
+
+$profile_id = null;
+$sql_profile = "SELECT profile_id FROM user_profile WHERE user_id = ?";
+$stmt_p = $conn->prepare($sql_profile);
+$stmt_p->bind_param("i", $user_id);
+$stmt_p->execute();
+$res_p = $stmt_p->get_result();
+if ($row_p = $res_p->fetch_assoc()) $profile_id = $row_p['profile_id'];
 
 // Handle posted course_id
 $course_id = '';
@@ -849,6 +869,162 @@ body.dark .notif-item.unread {
     text-decoration: underline;
 }
 
+/* --- CHATBOT ENHANCED DESIGN --- */
+
+.chatbot {
+  position: fixed;
+  right: 30px;
+  bottom: 22px;
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.chatbot-btn {
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--gradient);
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.18);
+}
+
+/* CHAT WINDOW WIDER + BETTER FONT SIZE */
+.chat-window {
+  width: 480px;                      /*  ⬅ wider */
+  min-height: 420px;
+  background: linear-gradient(145deg,#24132f,#1b102c 70%);
+  color: #f4f0ff;
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 25px 50px rgba(0,0,0,0.25);
+  display: none;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all .4s ease;
+  overflow: hidden;
+  position: relative;
+}
+
+
+.chat-window.show { display:block; opacity:1; transform:translateY(0); }
+
+.chat-header {
+  font-weight:700;
+  font-size:20px;
+  margin-bottom:10px;
+}
+
+/* Example prompts smaller + clickable */
+.chat-example {
+  background: rgba(255,255,255,0.09);
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: .25s ease;
+}
+.chat-example:hover { background: rgba(255,255,255,0.16); }
+
+#chatBody {
+  height: 250px;
+  overflow-y: auto;
+  margin-top: 14px;
+  padding-right: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* user bubble */
+.msg-user {
+  align-self: flex-end;
+  background: #ffffff22;
+  padding: 10px 14px;
+  border-radius: 12px;
+  max-width: 80%;
+  font-size: 14px;
+  color: #fff;
+  backdrop-filter: blur(4px);
+}
+
+/* ai bubble */
+.msg-ai {
+  align-self: flex-start;
+  background: #b57aff25;
+  padding: 10px 14px;
+  border-radius: 12px;
+  max-width: 80%;
+  font-size: 14px;
+  color: #f7e9ff;
+  border-left: 2px solid #b57aff;
+}
+
+/* Loading dots */
+.loading-orbs div{
+  width:7px; height:7px;
+}
+
+
+.search-bar {
+    display: flex;
+    justify-content: center;
+    margin: 20px 0;
+}
+
+.search-bar form {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.search-bar input[type="text"] {
+    padding: 10px 14px;
+    border: 2px solid #6c63ff; 
+    border-radius: 8px;
+    outline: none;
+    width: 300px;
+    font-size: 14px;
+    transition: 0.3s;
+}
+
+.search-bar input[type="text"]:focus {
+    border-color: #4e47d1;
+    box-shadow: 0 0 8px rgba(108, 99, 255, 0.5);
+}
+
+.search-btn {
+    background: linear-gradient(135deg, #6c63ff, #4e47d1);
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    margin-left: 10px; 
+    margin-top: 0px;
+}
+
+.search-btn:hover {
+    background: linear-gradient(135deg, #4e47d1, #6c63ff);
+    box-shadow: 0 4px 12px rgba(108, 99, 255, 0.4);
+    transform: translateY(-2px);
+    
+}
+
+body.dark .search-bar .form-control,
+body.dark .search-input {
+    background-color: #2c2c3c;
+    border: 1px solid #555;
+    color: #eee;
 
 
 </style>
@@ -860,23 +1036,26 @@ body.dark .notif-item.unread {
   <div class="brand"><div class="logo-circle">L</div><h3>Lingoland</h3></div>
   <div class="menu">
      <a href="../user_dashboard/user-dashboard.php"><i class="fas fa-home"></i> Home</a>
-    <a href="#" class="active"><i class="fas fa-book"></i> Courses</a>
+    <a href="../courses/courses.php" class="active"><i class="fas fa-book"></i> Courses</a>
+    <a href="../leaderboard/view_leaderboard.php"><i class="fas fa-trophy"></i> Leaderboard</a>
     <a id="flashToggle"><i class="fas fa-th-large"></i> Flashcards <i class="fas fa-chevron-right"></i></a>
     <div class="sub" id="flashSub">
-      <a href="#">Review</a>
-      <a href="#">Add New</a>
+      <a href="../user_flashcards/user_flashcards.php">Review</a>
+      <a href="../user_flashcards/create_flashcard.php">Add New</a>
+       <a href="../user_flashcards/bookmark_flashcard.php">Bookmarked Flashcard</a>
     </div>
     <a id="vocabToggle"><i class="fas fa-language"></i> Vocabulary <i class="fas fa-chevron-right"></i></a>
     <div class="sub" id="vocabSub">
-      <a href="#">Study</a>
-      <a href="#">Your Dictionary</a>
+      <a href="../user_dashboard_words/user_dashboard_words.php">Study New Words</a>
+        <a href="../user_dashboard_words/add_words.php">Your Dictionary</a>
     </div>
-    <a href="#"><i class="fas fa-pencil-alt"></i> Quiz</a>
-    <a href="#"><i class="fas fa-trophy"></i> Leaderboard</a>
-    <a href="#"><i class="fas fa-comments"></i> Forum</a>
-    <a href="#"><i class="fas fa-award"></i> Badges</a>
-     <a href="#"><i class="fas fa-certificate"></i> <span>Certificates</span></a>
-    <a href="#"><i class="fas fa-robot"></i> AI Assistant</a>
+    <a href="../user_badge/user_badge.php"><i class="fas fa-award"></i> Badges</a>
+     <a href="../user_certificate/user_certificate.php"><i class="fas fa-certificate"></i> <span>Certificates</span></a>
+     <a id="writingToggle"><i class="fas fa-robot"></i> AI Writing Assistant<i class="fas fa-chevron-right"></i></a>
+    <div class="sub" id="writingSub">
+      <a href="../writing_evaluation/writing_evaluation.php">Evaluate Writing</a>
+      <a href="../writing_evaluation/my_writing.php">My Writings</a>
+    </div>
     <a href="../user_dashboard/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a>
   </div>
 </div>
@@ -888,7 +1067,7 @@ body.dark .notif-item.unread {
     <h1>Lesson Module</h1>
   </div>
   <div class="right">
-    <button class="icon-btn" id="notifBtn">🔔<span class="badge" id="notifBadge">5</span></button>
+    <button class="icon-btn" id="notifBtn">🔔<span class="badge" id="notifBadge"></span></button>
     <div id="notifPopup" class="notif-popup">
     <div class="notif-header">Notifications</div>
 
@@ -935,11 +1114,9 @@ body.dark .notif-item.unread {
     </div>
 </div>
 
-    <button class="icon-btn" id="messageBtn">📩<span class="badge" id="msgBadge">3</span></button>
-    <div id="msgPop" style="display:none;position:absolute;top:64px;right:60px;background:var(--card-light);padding:10px;border-radius:10px;">You have new messages</div>
     <button class="icon-btn" id="settingsBtn"><i class="fas fa-cog"></i></button>
-    <span id="darkModeToggle" class="icon-btn">🌓</span>
-    <img src="<?php echo !empty($_SESSION['profile_picture']) ? '../settings/' . $_SESSION['profile_picture'] : 'https://i.pravatar.cc/40'; ?>" style="border-radius:50%">
+    <span id="themeBtn" class="icon-btn">🌓</span>
+     <img id="profilePic" src="<?php echo $profile_pic; ?>" alt="profile" style="width:46px;height:46px;border-radius:10px;cursor:pointer;border:2px solid rgba(0,0,0,0.06)">
   </div>
 </div>
 
@@ -949,22 +1126,22 @@ body.dark .notif-item.unread {
 
   <div class="settings-profile">
     <div class="profile-photo">
-      <img id="settingsProfilePic" src="https://i.pravatar.cc/120?img=12" alt="Profile Picture">
+      <img id="settingsProfilePic" src="<?php echo $profile_pic; ?>" alt="Profile Picture">
       <button id="editPhotoBtn" class="edit-photo"><i class="fas fa-pen"></i></button>
       <input type="file" id="photoInput" accept="image/*" hidden>
     </div>
-    <h3 id="userFullName">Ramisa Anjum</h3>
-    <p id="userEmail">ramisa.anjum345@gmail.com</p>
+    <h3 id="userFullName"><?php echo $full_name; ?></h3>
+    <p id="userEmail"><?php echo $user['email']; ?></p>
   </div>
 
   <div class="settings-section">
     <h4>Profile</h4>
     <div class="field-group">
-      <input type="text" id="firstName" value="Ramisa" disabled>
+      <input type="text" id="firstName" value="<?php echo $user['first_name']; ?>"disabled>
       <button class="edit-btn" data-field="firstName"><i class="fas fa-pen"></i></button>
     </div>
     <div class="field-group">
-      <input type="text" id="lastName" value="Anjum" disabled>
+      <input type="text" id="lastName" value="<?php echo $user['last_name']; ?>" disabled>
       <button class="edit-btn" data-field="lastName"><i class="fas fa-pen"></i></button>
     </div>
   </div>
@@ -972,11 +1149,11 @@ body.dark .notif-item.unread {
   <div class="settings-section">
     <h4>Account</h4>
     <div class="field-group">
-      <input type="email" id="emailField" value="ramisa.anjum345@gmail.com" disabled>
+      <input type="email" id="emailField" value="<?php echo $user['email']; ?>" disabled>
       <button class="edit-btn" data-field="emailField"><i class="fas fa-pen"></i></button>
     </div>
     <div class="field-group">
-      <input type="password" id="passwordField" value="••••••" disabled>
+      <input type="password" id="passwordField" value="<?php echo $user['password']; ?>"disabled>
       <button class="edit-btn" data-field="passwordField"><i class="fas fa-pen"></i></button>
     </div>
   </div>
@@ -987,8 +1164,8 @@ body.dark .notif-item.unread {
   <div class="search-bar">
     <form method="POST">
       <input type="hidden" name="course_id" value="<?php echo htmlspecialchars($course_id); ?>">
-      <input type="text" name="search" value="<?php echo htmlspecialchars($search_query); ?>" placeholder="Search lessons...">
-      <button type="submit" class="search-btn">Search</button>
+      <input type="text" name="search" class="form-control search-input" value="<?php echo htmlspecialchars($search_query); ?>" placeholder="Search lessons...">
+      <button type="submit" class="btn search-btn">Search</button>
     </form>
   </div>                 
                     <div class="filter-wrapper">
@@ -1076,39 +1253,52 @@ body.dark .notif-item.unread {
   </div>
 </main>
 
-<!-- Chatbot -->
+ <!-- Chatbot -->
 <div class="chatbot">
   <button class="chatbot-btn" id="chatBtn"><i class="fas fa-robot"></i></button>
+
+
+
   <div class="chat-window" id="chatWindow">
     <div class="chat-header">💬 LingAI — Your Smart Tutor</div>
     <p style="font-size:13px;color:#d0b3ff;margin-bottom:8px;">Hello! Ask anything about English learning 🌟</p>
-    <div class="loading-orbs"><div></div><div></div><div></div></div>
     <div style="font-size:12px;color:#c8b9e6;margin-bottom:8px;">Try these:</div>
     <div class="chat-example">“Give me 3 idioms for confidence.”</div>
     <div class="chat-example">“Correct this: I goes to school.”</div>
     <div class="chat-example">“Explain present perfect in one line.”</div>
+    <!-- ADD THIS -->
+    <div id="chatBody"
+         style="height:220px; overflow-y:auto; margin-top:10px;
+               padding-right:6px; display:flex; flex-direction:column;">
+    </div>
     <div style="margin-top:14px;display:flex;gap:8px;">
       <input id="chatInput" placeholder="Type your question..." style="flex:1;padding:8px;border-radius:8px;border:none;background:rgba(255,255,255,0.08);color:#fff;margin-top:30px">
-      <button id="chatSend" style="padding:8px 14px;border-radius:8px;background:#b57aff;color:#fff;border:0;font-weight:600;margin-top:30px">Send</button>
+      <button  type = "button" id="chatSend" style="padding:8px 14px;border-radius:8px;background:#b57aff;color:#fff;border:0;font-weight:600;margin-top:30px">Send</button>
     </div>
   </div>
 </div>
+
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
 
 <script>
+console.log("JS Loaded ✓");
+
+document.getElementById("chatSend").setAttribute("type", "button");
+
 
 // Sidebar submenu toggle
 const flashToggle=document.getElementById('flashToggle');
 const vocabToggle=document.getElementById('vocabToggle');
+const writintToggle=document.getElementById('writingToggle');
 flashToggle.addEventListener('click',()=>document.getElementById('flashSub').classList.toggle('show'));
 vocabToggle.addEventListener('click',()=>document.getElementById('vocabSub').classList.toggle('show'));
+writingToggle.addEventListener('click', ()=> document.getElementById('writingSub').classList.toggle('show'));
 
 const notifBtn=document.getElementById('notifBtn');
-const msgBtn=document.getElementById('messageBtn');
+
 notifBtn.onclick=()=>{document.getElementById('notifPop').style.display=document.getElementById('notifPop').style.display==='block'?'none':'block';document.getElementById('msgPop').style.display='none';};
-msgBtn.onclick=()=>{document.getElementById('msgPop').style.display=document.getElementById('msgPop').style.display==='block'?'none':'block';document.getElementById('notifPop').style.display='none';};
 
 const settingsBtn=document.getElementById('settingsBtn');
 const settingsPanel=document.getElementById('settingsPanel');
@@ -1116,15 +1306,124 @@ const settingsClose=document.getElementById('settingsClose');
 settingsBtn.onclick=()=>settingsPanel.classList.add('open');
 settingsClose.onclick=()=>settingsPanel.classList.remove('open');
 
-const darkToggle=document.getElementById('darkModeToggle');
-darkToggle.addEventListener('click',()=>{document.body.classList.toggle('dark');localStorage.setItem('darkMode',document.body.classList.contains('dark'));});
-if(localStorage.getItem('darkMode')==='true')document.body.classList.add('dark');
+  // --------- THEME ----------
+    const themeBtn=document.getElementById('themeBtn');
 
+// Function to save theme to database
+async function saveThemeToDatabase(themeId) {
+    try {
+        console.log('Saving theme - Theme ID:', themeId, 'User ID:', <?php echo $user_id; ?>);
+        
+        const formData = new FormData();
+        formData.append('theme_id', themeId);
+        formData.append('user_id', <?php echo $user_id; ?>);
+
+        // Log what's being sent
+        for (let [key, value] of formData.entries()) {
+            console.log('FormData:', key, value);
+        }
+
+        const response = await fetch('../user_dashboard/update_theme.php', {
+            method: 'POST',
+            body: formData
+        });
+
+        console.log('Response status:', response.status);
+        const result = await response.json();
+        console.log('Server response:', result);
+        
+        if (!result.success) {
+            console.error('Failed to save theme:', result.message);
+        } else {
+            console.log('Theme saved successfully!');
+        }
+    } catch (error) {
+        console.error('Error saving theme:', error);
+    }
+}
+
+// Initialize theme from localStorage or default to light
+const currentTheme = localStorage.getItem('lingo_theme') || 'light';
+if (currentTheme === 'dark') {
+    document.body.classList.add('dark');
+}
+
+// Theme button click handler
+themeBtn.onclick = async () => {
+    const isDark = document.body.classList.toggle('dark');
+    const theme = isDark ? 'dark' : 'light';
+    const themeId = isDark ? 2 : 1;
+    
+    // Save to localStorage
+    localStorage.setItem('lingo_theme', theme);
+    
+    // Save to database
+    await saveThemeToDatabase(themeId);
+    
+    // Show notification
+    showNotification(`Theme changed to ${theme} mode`);
+};
+// Chatbot
 const chatBtn=document.getElementById('chatBtn');
 const chatWindow=document.getElementById('chatWindow');
 chatBtn.onclick=()=>chatWindow.classList.toggle('show');
 
-window.addEventListener('load',()=>{document.querySelectorAll('.lesson-card').forEach((el,i)=>{setTimeout(()=>{el.classList.add('enter');},i*120);});});
+// Click on example → fill input + show send button
+document.querySelectorAll(".chat-example").forEach(ex => {
+  ex.addEventListener("click", () => {
+    document.getElementById("chatInput").value = ex.innerText;
+  });
+});
+
+// Hide examples when a message is sent
+function hideExamples() {
+  document.querySelectorAll(".chat-example").forEach(ex => ex.style.display = "none");
+}
+
+document.getElementById("chatSend").addEventListener("click", async function () {
+    const input = document.getElementById("chatInput");
+    const text = input.value.trim();
+    if (!text) return;
+
+    hideExamples();   // 🟣 hide prompts on first message
+
+    input.value = "";
+    let body = document.getElementById("chatBody");
+
+    body.innerHTML += `<div class="msg-user">${text}</div>`;
+    body.scrollTop = body.scrollHeight;
+
+    let loading = document.createElement("div");
+    loading.innerHTML = `<div class='loading-orbs'><div></div><div></div><div></div></div>`;
+    body.appendChild(loading);
+
+    try {
+        let res = await fetch("http://127.0.0.1:5001/ai_tutor", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                profile_id: <?php echo $profile_id; ?>,
+                lesson_id: null,
+                message: text
+            })
+        });
+
+        let data = await res.json();
+        loading.remove();
+
+        body.innerHTML += `<div class="msg-ai">${data.reply}</div>`;
+        body.scrollTop = body.scrollHeight;
+
+    } catch (err) {
+        loading.remove();
+        body.innerHTML += `<div class="msg-ai" style="color:red;">AI server error.</div>`;
+    }
+});
+
+
+
+// Animation
+window.addEventListener('load',()=>{document.querySelectorAll('.stagger').forEach((el,i)=>{setTimeout(()=>{el.classList.add('enter');},i*120);});});
 
 document.addEventListener("DOMContentLoaded", function () {
   const toggleBtn = document.getElementById('sfMenu');           // Sort & Filter button
@@ -1180,37 +1479,162 @@ const editPhotoBtn = document.getElementById('editPhotoBtn');
 const photoInput = document.getElementById('photoInput');
 const profileImg = document.getElementById('settingsProfilePic');
 editPhotoBtn.addEventListener('click', () => photoInput.click());
-photoInput.addEventListener('change', (e) => {
+// Profile photo upload with database saving
+photoInput.addEventListener('change', async (e) => {
   const file = e.target.files[0];
-  if (file) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      profileImg.src = reader.result;
-    };
-    reader.readAsDataURL(file);
+  if (!file) return;
+
+  // Validate file type
+  if (!file.type.startsWith('image/')) {
+    alert('Please select an image file');
+    return;
+  }
+
+  // Validate file size (max 2MB)
+  if (file.size > 2 * 1024 * 1024) {
+    alert('Image size should be less than 2MB');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('profile_picture', file);
+  formData.append('user_id', <?php echo $user_id; ?>);
+
+  try {
+    const response = await fetch('update_profile_picture.php', {
+      method: 'POST',
+      body: formData
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      profileImg.src = result.new_image_url;
+      showNotification('Profile picture updated successfully!');
+      
+      // Update header profile picture too
+      const headerProfilePic = document.getElementById('profilePic');
+      if (headerProfilePic) {
+        headerProfilePic.src = result.new_image_url;
+      }
+    } else {
+      alert('Error updating profile picture: ' + result.message);
+    }
+  } catch (error) {
+    alert('Error uploading image: ' + error.message);
   }
 });
 
-// editable fields toggle
+// Editable fields toggle with database saving
 document.querySelectorAll('.edit-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
+  btn.addEventListener('click', async () => {
     const fieldId = btn.getAttribute('data-field');
     const field = document.getElementById(fieldId);
     const icon = btn.querySelector('i');
 
     if (field.disabled) {
+      // Enable editing mode
       field.disabled = false;
       field.focus();
       icon.classList.replace('fa-pen', 'fa-save');
       field.style.borderBottom = '2px solid var(--lilac-2)';
     } else {
+      // Save mode - send data to server
       field.disabled = true;
       icon.classList.replace('fa-save', 'fa-pen');
       field.style.borderBottom = 'none';
-      alert(`Saved: ${field.value}`);
+      
+      try {
+        await saveFieldToDatabase(fieldId, field.value);
+        showNotification(`Successfully updated ${getFieldName(fieldId)}!`);
+        
+        // Update the displayed name if first/last name changed
+        if (fieldId === 'firstName' || fieldId === 'lastName') {
+          updateDisplayName();
+        }
+      } catch (error) {
+        alert(`Error saving ${getFieldName(fieldId)}: ${error.message}`);
+        // Revert icon if save fails
+        icon.classList.replace('fa-pen', 'fa-save');
+        field.disabled = false;
+      }
     }
   });
 });
+
+// Function to get field name for display
+function getFieldName(fieldId) {
+  const fieldNames = {
+    'firstName': 'First Name',
+    'lastName': 'Last Name', 
+    'emailField': 'Email',
+    'passwordField': 'Password'
+  };
+  return fieldNames[fieldId] || fieldId;
+}
+
+// Function to update displayed name in settings panel
+function updateDisplayName() {
+  const firstName = document.getElementById('firstName').value;
+  const lastName = document.getElementById('lastName').value;
+  const fullNameElement = document.getElementById('userFullName');
+  
+  if (fullNameElement) {
+    fullNameElement.textContent = `${firstName} ${lastName}`;
+  }
+}
+
+// Function to save field data to database
+async function saveFieldToDatabase(fieldName, fieldValue) {
+  const formData = new FormData();
+  formData.append('field', fieldName);
+  formData.append('value', fieldValue);
+  formData.append('user_id', <?php echo $user_id; ?>);
+
+  const response = await fetch('update_profile.php', {
+    method: 'POST',
+    body: formData
+  });
+
+  if (!response.ok) {
+    throw new Error('Network response was not ok');
+  }
+
+  const result = await response.json();
+  
+  if (!result.success) {
+    throw new Error(result.message || 'Failed to update profile');
+  }
+  
+  return result;
+}
+
+// Function to show notification
+function showNotification(message) {
+  // Create a temporary notification
+  const notification = document.createElement('div');
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: var(--lilac-1);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 1000;
+    font-weight: 500;
+  `;
+  notification.textContent = message;
+  
+  document.body.appendChild(notification);
+  
+  // Remove after 3 seconds
+  setTimeout(() => {
+    notification.remove();
+  }, 3000);
+}
+
 // Toggle popup
 document.getElementById("notifBtn").addEventListener("click", () => {
     let p = document.getElementById("notifPopup");

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zxx">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lingoland - Register</title>
+    
+
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&family=Poppins:wght@500&display=swap" rel="stylesheet">
+   
+    <link rel="stylesheet" href="../home/bootstrap.css">
+    
+    
+    <link rel="stylesheet" href="register.css">
+</head>
+
+<body>
+    <div class="register-container">
+        <div class="register-box">
+           
+            <div class="left">
+                <img src="../img/logo.png" alt="Lingoland Logo" class="logo">
+                <p>Create your account and start your language learning journey today!</p>
+            </div>
+
+            
+            <div class="right">
+                <h3>Register</h3>
+                <form action="register.php" method="post">
+                    
+                    <div class="input-group">
+                        <img src="../img/icon6.png" class="icon" alt="User Icon">
+                        <input type="text" name="first_name" placeholder="First Name" class="form-control" required />
+                    </div>
+
+                   
+                    <div class="input-group">
+                        <img src="../img/icon7.png" class="icon" alt="User Icon">
+                        <input type="text" name="last_name" placeholder="Last Name" class="form-control" required />
+                    </div>
+
+                   
+                    <div class="input-group">
+                        <img src="../img/icon4.png" class="icon" alt="Email Icon">
+                        <input type="email" name="email" placeholder="Email" class="form-control" required />
+                    </div>
+
+                    
+                    <div class="input-group">
+                        <img src="../img/icon5.png" class="icon" alt="Password Icon">
+                        <input type="password" name="password" placeholder="Password" class="form-control" required />
+                    </div>
+
+                    
+                    <div class="input-group">
+                        <img src="../img/icon5.png" class="icon" alt="Password Icon">
+                        <input type="password" name="confirm_password" placeholder="Retype Password" class="form-control" required />
+                    </div>
+
+                    
+                    <div class="checkbox">
+                        <input type="checkbox" name="terms" required /> I accept the Terms of Use and Privacy Policy</a>
+                    </div>
+
+                   <button type="submit" class="btn btn-primary btn-block">Get Started</button>
+
+                   
+                    <p class="already-have-account">Already have an account? <a href="../login/login.html">Sign In</a></p>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    
+
+
+    <script src="js/jquery-3.6.0.min.js"></script>
+    <script src="js/bootstrap.bundle.min.js"></script>
+
+    
+</body>
+</html>

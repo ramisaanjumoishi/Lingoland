@@ -1,0 +1,613 @@
+<?php
+session_start();
+
+if (!isset($_SESSION['user_id'])) {
+    header("Location: ../login_signup/login_signup.html");
+    exit();
+}
+
+$user_id = $_SESSION['user_id'];
+
+$conn = new mysqli("localhost", "root", "", "lingoland_db");
+
+if ($conn->connect_error) {
+    die("DB Connection failed: " . $conn->connect_error);
+}
+
+// Fetch last saved theme from sets table
+$sql = "SELECT theme_id FROM sets WHERE user_id = ? ORDER BY set_on DESC LIMIT 1";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$res = $stmt->get_result();
+$row = $res->fetch_assoc();
+
+$theme_id = $row ? $row['theme_id'] : 1; // default light
+$body_class = ($theme_id == 2) ? "dark" : "";
+
+?>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Lingoland — Step 5 · Interests</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg-1: #f5a7d3;
+      --bg-2: #97c0fc;
+      --accent-1: #6a4c93;
+      --accent-2: #9b59b6;
+      --muted: #6b6b6b;
+      --card: #ffffff;
+      --glass: rgba(255,255,255,0.45);
+      --radius: 14px;
+      --shadow: 0 10px 30px rgba(18,18,18,0.08);
+      --text: #1f1f1f;
+    }
+
+    body.dark {
+      --bg-1: #2a2540;
+      --bg-2: #2e2b3f;
+      --accent-1: #b89cd6;
+      --accent-2: #8e6bb8;
+      --muted: #cfcfe6;
+      --card: #12121a;
+      --glass: rgba(255,255,255,0.03);
+      --shadow: 0 8px 24px rgba(0,0,0,0.6);
+      --text: #f4f4f8;
+    }
+
+    html,body{height:110%;margin:0;font-family:'Poppins',system-ui,Roboto,Arial,sans-serif;background:linear-gradient(135deg,var(--bg-1),var(--bg-2));-webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; color:var(--text)}
+    .wrap {
+      min-height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:36px;
+      box-sizing:border-box;
+    }
+
+    /* Stage container */
+    .stage {
+      width:100%;
+      max-width:1200px;
+      display:grid;
+      grid-template-columns: 560px 1fr;
+      gap:28px;
+      align-items:center;
+    }
+
+    /* Left card (primary) */
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+      border-radius:var(--radius);
+      padding:28px;
+      box-shadow:var(--shadow);
+      backdrop-filter: blur(6px);
+      color:var(--text);
+      overflow:hidden;
+      position:relative;
+      border: 1px solid rgba(255,255,255,0.06);
+      width: 600px;
+      margin-left: -30px;
+    }
+
+    .brand {
+      display:flex;
+      gap:12px;
+      align-items:center;
+      margin-bottom:18px;
+    }
+    .logo-circle{
+      width:56px;height:56px;border-radius:12px;
+      background:linear-gradient(135deg,var(--accent-1),var(--accent-2));
+      display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:20px;box-shadow:0 6px 18px rgba(0,0,0,0.18)
+    }
+    .brand h5{margin:0;font-size:13px;font-weight:600;color:rgba(255,255,255,0.95)}
+    .brand p{margin:0;font-size:12px;color:var(--muted)}
+
+    .hero {
+      margin-top:8px;
+      padding:12px;
+      border-radius:10px;
+      background: linear-gradient(120deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    }
+
+    .title {
+      font-size:26px;
+      line-height:1.02;
+      margin:12px 0 6px;
+      font-weight:700;
+      color:var(--text);
+      letter-spacing:-0.2px;
+    }
+    .subtitle {
+      margin:0 0 16px;color:var(--muted); font-size:15px; line-height:1.4;
+    }
+
+    .cta-row {display:flex; gap:12px; align-items:center}
+    .btn {
+      padding:12px 18px;
+      border-radius:12px;
+      border:0;
+      font-weight:600;
+      cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      transition: transform .12s ease, box-shadow .12s ease, opacity .12s;
+      box-shadow: 0 8px 20px rgba(106,76,147,0.12);
+    }
+    .btn.primary {
+      background: linear-gradient(90deg,var(--accent-1),var(--accent-2));
+      color:white;
+      font-size:15px;
+    }
+    .btn.ghost {
+      background: transparent;
+      color:var(--text);
+      border:1px solid rgba(0,0,0,0.06);
+    }
+    .btn:active{transform:translateY(1px)}
+    .muted { color:var(--muted); font-size:13px }
+
+    /* progress bar top */
+    .progress-top {
+      display:flex;
+      align-items:center;
+      gap:12px;
+      margin-top:18px;
+      margin-bottom:6px;
+    }
+    .dots {display:flex; gap:6px}
+    .dot {width:10px;height:10px;border-radius:6px;background:rgba(255,255,255,0.12)}
+    .dot.active {width:28px;background:linear-gradient(90deg,var(--accent-1),var(--accent-2));box-shadow:0 6px 14px rgba(105,64,140,0.18)}
+
+    /* interests grid */
+    .interests-grid {
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap:12px;
+      margin-top:12px;
+    }
+    .interest {
+      background: var(--card);
+      border-radius:12px;
+      padding:14px;
+      display:flex;
+      gap:12px;
+      align-items:center;
+      cursor:pointer;
+      box-shadow: 0 6px 18px rgba(11,11,12,0.06);
+      transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+      border: 1px solid rgba(0,0,0,0.04);
+    }
+    .interest .icon {
+      width:48px;height:48px;border-radius:10px;
+      display:flex;align-items:center;justify-content:center;font-size:20px;
+      background: linear-gradient(90deg,var(--accent-2),var(--accent-1));
+      color:white;
+      flex-shrink:0;
+    }
+    .interest .meta { font-weight:600; font-size:15px; color:var(--text) }
+    .interest .sub { font-size:13px; color:var(--muted) }
+
+    .interest:hover{ transform: translateY(-6px); box-shadow: 0 14px 30px rgba(11,11,12,0.08) }
+
+    /* selected state uses brand gradient + white text (works in both themes) */
+    .interest.selected {
+      background: linear-gradient(90deg,var(--accent-1),var(--accent-2));
+      color: white;
+      border-color: rgba(0,0,0,0.06);
+    }
+    .interest.selected .meta, .interest.selected .sub { color: white !important }
+    .interest.selected .icon { filter: brightness(.95) }
+
+    /* preview (right pane) */
+    .preview {
+      height:520px;
+      border-radius:var(--radius);
+      padding:18px;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      align-items:stretch;
+      justify-content:flex-start;
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+      border:1px solid rgba(255,255,255,0.04);
+      box-shadow:var(--shadow);
+      margin-left: 100px;
+    }
+    .preview h4 {margin:6px 0 0;font-size:16px;color:var(--text)}
+    .preview p {margin:0;color:var(--muted);font-size:14px}
+    .preview .tile {
+      background:var(--card);
+      border-radius:10px;
+      padding:12px;
+      display:flex;gap:12px;align-items:center;
+      box-shadow: 0 6px 18px rgba(11,11,12,0.06);
+      transition:transform .22s ease, box-shadow .22s ease;
+    }
+    .preview .tile:hover{transform:translateY(-6px);box-shadow:0 14px 30px rgba(11,11,12,0.08)}
+    .illustration {
+      width: 400px;
+      animation: float 3.5s ease-in-out infinite;
+      align-self:center;
+      margin-top:-130px;
+    }
+
+    .theme-toggle{position:absolute;top:18px;right:18px;border-radius:999px;padding:8px;background:var(--glass)};
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes slideUp {
+      from { transform: translateY(30px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-15px); }
+    }
+
+    /* responsive */
+    @media (max-width:1100px) {
+      .stage { grid-template-columns: 1fr; }
+      .preview { order: -1; height: auto; }
+    }
+    @media (max-width:700px) {
+      .interests-grid { grid-template-columns: repeat(2, 1fr) }
+      .stage { gap:16px; padding:20px; }
+    }
+  </style>
+</head>
+<body class="<?php echo $body_class; ?>">
+  <div class="wrap">
+    <div class="stage" role="main" aria-labelledby="onboardTitle">
+      <!-- left card -->
+      <div class="card" aria-hidden="false">
+        <button class="theme-toggle" id="themeBtn" aria-label="Toggle theme">🌓</button>
+
+        <div class="brand" aria-hidden="true">
+          <div class="logo-circle">L</div>
+          <div>
+            <h5>Lingoland</h5>
+            <p class="small">AI-powered English learning</p>
+          </div>
+        </div>
+
+        <div class="hero" role="region" aria-labelledby="onboardTitle">
+          <div class="screen-title">Step 5 of 6</div>
+          <h1 id="onboardTitle" class="title">Which topics excite you?</h1>
+          <p class="subtitle">Pick a few interests so we can recommend articles, vocabulary and lessons you'll actually enjoy.</p>
+
+          <div class="progress-top" aria-hidden="true">
+            <div class="dots" id="dots">
+              <div class="dot"></div>
+              <div class="dot"></div>
+              <div class="dot"></div>
+              <div class="dot"></div>
+              <div class="dot active"></div>
+              <div class="dot"></div>
+            </div>
+            <div class="muted">Tailored content • Higher motivation</div>
+          </div>
+
+          <form id="interestsForm" action="save_interests.php" method="POST" style="margin-top:14px;">
+            <!-- grid of interests (3 columns) -->
+            <div class="interests-grid" id="interestsGrid">
+              <div class="interest" data-value="Travel">
+                <div class="icon">✈️</div>
+                <div>
+                  <div class="meta">Travel</div>
+                  <div class="sub">Trips, culture & phrases</div>
+                </div>
+              </div>
+
+              <div class="interest" data-value="Music">
+                <div class="icon">🎵</div>
+                <div>
+                  <div class="meta">Music</div>
+                  <div class="sub">Lyrics & pop-culture</div>
+                </div>
+              </div>
+
+              <div class="interest" data-value="Tech">
+                <div class="icon">💻</div>
+                <div>
+                  <div class="meta">Technology</div>
+                  <div class="sub">Apps, coding & news</div>
+                </div>
+              </div>
+
+              <div class="interest" data-value="Food">
+                <div class="icon">🍕</div>
+                <div>
+                  <div class="meta">Food</div>
+                  <div class="sub">Recipes & foodie vocab</div>
+                </div>
+              </div>
+
+              <div class="interest" data-value="Movies">
+                <div class="icon">🎬</div>
+                <div>
+                  <div class="meta">Movies</div>
+                  <div class="sub">Reviews & dialogues</div>
+                </div>
+              </div>
+
+              <div class="interest" data-value="Sports">
+                <div class="icon">⚽</div>
+                <div>
+                  <div class="meta">Sports</div>
+                  <div class="sub">Matches & commentary</div>
+                </div>
+              </div>
+
+              <div class="interest" data-value="Business">
+                <div class="icon">💼</div>
+                <div>
+                  <div class="meta">Business</div>
+                  <div class="sub">Workplace English</div>
+                </div>
+              </div>
+
+              <div class="interest" data-value="Fashion">
+                <div class="icon">👗</div>
+                <div>
+                  <div class="meta">Fashion</div>
+                  <div class="sub">Trends & vocabulary</div>
+                </div>
+              </div>
+
+              <div class="interest" data-value="Science">
+                <div class="icon">🔬</div>
+                <div>
+                  <div class="meta">Science</div>
+                  <div class="sub">Discoveries & explainers</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- hidden input to carry selected interests as JSON -->
+            <input type="hidden" name="interests_json" id="interests_json" />
+
+            <div style="margin-top:18px; display:flex; gap:12px; align-items:center;">
+              <button type="button" class="btn ghost" id="backBtn">← Back</button>
+              <button type="submit" class="btn primary" id="nextBtn">Next</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- right preview -->
+      <aside class="preview" aria-label="Preview area">
+        <div class="screen-title">Preview</div>
+        <h4>Why this matters</h4>
+        <p class="small">Interests tune vocabulary themes, reading material and speaking prompts so lessons feel relevant and fun.</p>
+
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
+          <div class="tile">
+            <div class="meta">📚 Curated reading that matches your tastes</div>
+          </div>
+
+          <div class="tile">
+            <div class="meta">🎧 Podcast & listening suggestions</div>
+          </div>
+
+          <div class="tile">
+            <div class="meta">🎯 Topic-based vocabulary lists</div>
+          </div>
+        </div>
+
+        <img src="../img/onboarding_img5.png" alt="Interests Illustration" class="illustration" />
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    // === EXACT JS behaviour from Step 1 (copied & extended) ===
+    const startBtn = document.getElementById('startBtn'); // may be null on this page, safe
+    const startBtn2 = document.getElementById('startBtn2'); // may be null on this page, safe
+    const dots = document.querySelectorAll('.dot');
+    const learn = document.getElementById('learnMore'); // may be null here
+
+    // Progress animator (identical)
+    function advanceDots() {
+      for (let i=0;i<dots.length;i++){
+        (function(i){
+          setTimeout(()=> {
+            dots.forEach(d=>d.classList.remove('active'));
+            dots[i].classList.add('active');
+          }, i*120);
+        })(i);
+      }
+    }
+
+    // Show next-step small animation then navigate (identical feel)
+    function showNextStep(targetUrl = 'onboarding_step6.php') {
+      const card=document.querySelector('.card');
+      document.querySelector(".card").style.animation = "slideUp 0.6s reverse forwards";
+      document.querySelector(".brand").style.animation = "slideUp 0.6s reverse forwards";
+      document.querySelector(".illustration").style.animation = "fadeIn 0.5s reverse forwards";
+      document.querySelector(".preview").style.animation = "fadeIn 0.5s reverse forwards";;
+      advanceDots()
+ 
+
+      setTimeout(()=> {
+        card.style.transform = 'translateX(-100%)';
+        card.style.opacity = '0';
+        setTimeout(()=> {
+          // navigate
+          window.location.href = targetUrl;
+        }, 800);
+      }, 650);
+    }
+
+
+    // Interests multi-select logic
+    const interestEls = document.querySelectorAll('.interest');
+    const hiddenInput = document.getElementById('interests_json');
+
+    // keep a Set of chosen values
+    const chosen = new Set();
+    interestEls.forEach(el => {
+      el.addEventListener('click', ()=> {
+        const val = el.dataset.value;
+        if (chosen.has(val)) {
+          chosen.delete(val);
+          el.classList.remove('selected');
+        } else {
+          chosen.add(val);
+          el.classList.add('selected');
+        }
+        // update hidden input as JSON array
+        hiddenInput.value = JSON.stringify(Array.from(chosen));
+      });
+
+      // keyboard accessibility
+      el.tabIndex = 0;
+      el.addEventListener('keydown', (e)=> {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          el.click();
+        }
+      });
+    });
+
+    // Back button: go to previous step (step4)
+    document.getElementById('backBtn').addEventListener('click', ()=> {
+      // small reverse animation
+      const card = document.querySelector('.card');
+      card.style.transition = 'transform .45s ease, opacity .45s ease';
+      card.style.transform = 'translateX(30px) scale(.995)';
+      card.style.opacity = '.95';
+       const illustration = document.querySelector(".illustration");
+      illustration.style.transition = 'transform .45s ease, opacity .45s ease';
+      illustration.style.transform = 'translateX(30px) scale(.995)';
+      illustration.style.opacity = '.95';
+      setTimeout(()=> { window.location.href = 'onboarding_step4.php'; }, 400);
+    });
+
+    // Submit handler: save and animate to next
+   // Submit handler: save and animate to next
+document.getElementById('interestsForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const formData = new FormData(form);
+  const interests = JSON.parse(document.getElementById('interests_json').value || "[]");
+
+  if (interests.length === 0) {
+    alert("Please select at least one interest before continuing.");
+    return;
+  }
+
+  // debug
+  console.log("Selected interests:", interests);
+    // debug: list FormData key/values in console
+ for (const pair of formData.entries()) {
+  console.log('formData:', pair[0], '=', pair[1]);
+}
+
+  fetch(form.action, {
+    method: 'POST',
+    body: formData
+  })
+  .then(res => res.text())
+  .then(res => {
+    console.log("Server response:", res);
+    if (res.includes("success")) {
+      showNextStep('onboarding_step6.php');
+    } else {
+      alert("⚠️ Error saving data: " + res);
+    }
+  })
+  .catch(err => console.error('Error saving interests:', err));
+});
+
+
+    // Make dots show current step (5th active on load)
+    window.addEventListener('load', ()=> {
+      dots.forEach((d, i)=> d.classList.toggle('active', i===4));
+      // focus first interest for accessibility
+      const first = document.querySelector('.interest');
+      if (first) first.focus();
+    });
+
+    // keep goNext compatibility if referenced
+    function goNext() {
+      // slideUp / fadeIn feel per Step 1
+      const card=document.querySelector('.card');
+      card.style.transition='transform .5s ease, opacity .5s ease';
+      card.style.transform='translateX(-40px) scale(.98)';
+      card.style.opacity='.92';
+      document.querySelector(".preview").style.animation = "fadeIn 0.5s reverse forwards";
+      advanceDots()
+      setTimeout(()=> { window.location.href = "onboarding_step6.php"; }, 700);
+    }
+
+    // Optional: expose advanceDots globally (keeps parity with Step1)
+    window.advanceDots = advanceDots;
+ // --------- THEME ----------
+    const themeBtn=document.getElementById('themeBtn');
+
+// Function to save theme to database
+async function saveThemeToDatabase(themeId) {
+    try {
+        console.log('Saving theme - Theme ID:', themeId, 'User ID:', <?php echo $user_id; ?>);
+        
+        const formData = new FormData();
+        formData.append('theme_id', themeId);
+        formData.append('user_id', <?php echo $user_id; ?>);
+
+        // Log what's being sent
+        for (let [key, value] of formData.entries()) {
+            console.log('FormData:', key, value);
+        }
+
+        const response = await fetch('../user_dashboard/update_theme.php', {
+            method: 'POST',
+            body: formData
+        });
+
+        console.log('Response status:', response.status);
+        const result = await response.json();
+        console.log('Server response:', result);
+        
+        if (!result.success) {
+            console.error('Failed to save theme:', result.message);
+        } else {
+            console.log('Theme saved successfully!');
+        }
+    } catch (error) {
+        console.error('Error saving theme:', error);
+    }
+}
+
+// Initialize theme from localStorage or default to light
+const currentTheme = localStorage.getItem('lingo_theme') || 'light';
+if (currentTheme === 'dark') {
+    document.body.classList.add('dark');
+}
+
+// Theme button click handler
+themeBtn.onclick = async () => {
+    const isDark = document.body.classList.toggle('dark');
+    const theme = isDark ? 'dark' : 'light';
+    const themeId = isDark ? 2 : 1;
+    
+    // Save to localStorage
+    localStorage.setItem('lingo_theme', theme);
+    
+    // Save to database
+    await saveThemeToDatabase(themeId);
+    
+    // Show notification
+    showNotification(`Theme changed to ${theme} mode`);
+};
+  </script>
+</body>
+</html>
